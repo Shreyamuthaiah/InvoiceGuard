@@ -193,10 +193,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--data", default="data/synthetic")
     p.add_argument("--run", required=True, help="run directory for cached predictions + report")
     p.add_argument("--limit", type=int, default=None, help="only the first N documents")
-    p.add_argument("--provider", choices=["ollama", "claude"], default="ollama")
-    p.add_argument("--model", default=None, help="default: qwen2.5:7b (ollama) / claude-opus-5-5 (claude)")
+    p.add_argument("--provider", choices=["gemini", "groq", "ollama", "claude"], default="gemini")
+    p.add_argument("--model", default=None, help="default depends on provider (see extract/)")
     p.add_argument("--effort", default=None, help="claude only")
-    p.add_argument("--workers", type=int, default=None, help="default: 1 for ollama, 4 for claude")
+    p.add_argument("--workers", type=int, default=None, help="default: 1 for ollama, 2 for free APIs, 4 for claude")
     p.add_argument("--report-only", action="store_true", help="rescore cached predictions; no API calls")
     a = p.parse_args(argv)
 
@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> None:
                 sys.exit(f"{run_dir} was run with {prev}; use a new --run directory for a different config")
         run_dir.mkdir(parents=True, exist_ok=True)
         cfg.write_text(json.dumps(config))
-        workers = a.workers or (1 if a.provider == "ollama" else 4)
+        workers = a.workers or {"ollama": 1, "claude": 4}.get(a.provider, 2)
         run_predictions(extractor, data, run_dir, cases, workers)
 
     summary = score(run_dir, cases)

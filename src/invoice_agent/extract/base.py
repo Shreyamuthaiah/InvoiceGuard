@@ -11,7 +11,10 @@ from invoice_agent.extract.models import ExtractedInvoice
 from invoice_agent.extract.normalize import NormalizationError, to_invoice
 from invoice_agent.schema import Invoice
 
-# USD per million tokens (input, output). Local models cost nothing.
+# Providers used on free tiers / locally: reported cost is $0.
+FREE_PROVIDERS = {"ollama", "gemini", "groq"}
+
+# USD per million tokens (input, output).
 PRICING = {
     "claude-opus-5-5": (4.00, 20.00),
     "claude-sonnet-5-5": (2.00, 10.00),
@@ -53,7 +56,7 @@ class ExtractionResult:
 
     @property
     def cost_usd(self) -> Optional[float]:
-        if self.provider == "ollama":
+        if self.provider in FREE_PROVIDERS:
             return 0.0
         price = PRICING.get(self.model)
         if not price:

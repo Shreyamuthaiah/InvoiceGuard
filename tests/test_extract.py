@@ -227,3 +227,88 @@ def test_ollama_reports_bad_output_and_truncation(small_dataset):
 def test_ollama_unreachable():
     res = OllamaExtractor(host="http://127.0.0.1:9").extract_text("x")
     assert res.invoice is None and "cannot reach Ollama" in res.error
+
+
+# ---------- free hosted APIs (OpenAI-compatible; mocked HTTP) ----------
+
+from invoice_agent.extract.openai_compat import OpenAICompatExtractor
+
+
+def _compat_client(responses: list, seen: list):
+    """Serve the queued (status, body, headers) tuples in order."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request, _json.loads(request.content)))
+        status, body, headers = responses.pop(0)
+        return httpx.Response(status, json=body, headers=headers)
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def _ok(content: str, finish="stop"):
+    return (200, {"choices": [{"message": {"content": content}, "finish_reason": finish}],
+                  "usage": {"prompt_tokens": 1800, "completion_tokens": 600}}, {})
+
+
+@pytest.mark.parametrize("provider,host,model,strict", [
+    ("gemini", "generativelanguage.googleapis.com", "gemini-3.8-flash", False),
+    ("groq", "api.groq.com", "openai/gpt-oss-120b", True),
+])
+def test_compat_request_shape(small_dataset, provider, host, model, strict):
+    ds, out = small_dataset
+    gt = next(g for g in ds.cases if not g.render.scanned)
+    seen = []
+    client = _compat_client([_ok(printed_extraction(gt).model_dump_json())], seen)
+    ex = OpenAICompatExtractor(provider, api_key="test-key", rpm=0, client=client)
+    res = ex.extract_text(pdf_to_text(out / gt.render.file))
+    assert res.error is None and compare(res.invoice, gt.invoice)["critical_all"] and res.cost_usd == 0.0
+    req, body = seen[0]
+    assert req.url.host == host and req.url.path.endswith("/chat/completions")
+    assert req.headers["authorization"] == "Bearer test-key"
+    assert body["model"] == model and body["response_format"]["type"] == "json_schema"
+    sent = body["response_format"]["json_schema"]
+    assert sent.get("strict", False) is strict
+    assert (sent["schema"].get("additionalProperties") is False) is strict
+
+
+def test_compat_retries_rate_limits_then_succeeds(small_dataset):
+    ds, out = small_dataset
+    gt = next(g for g in ds.cases if not g.render.scanned)
+    sleeps, seen = [], []
+    client = _compat_client([(429, {"error": "slow down"}, {"retry-after": "7"}),
+                             (503, {"error": "busy"}, {}),
+                             _ok(printed_extraction(gt).model_dump_json())], seen)
+    ex = OpenAICompatExtractor("gemini", api_key="k", rpm=0, client=client, sleep=sleeps.append)
+    res = ex.extract_text(pdf_to_text(out / gt.render.file))
+    assert res.error is None and len(seen) == 3 and sleeps == [7.0, 20]
+
+
+def test_compat_gives_up_and_reports(small_dataset):
+    client = _compat_client([(429, {"error": "quota"}, {})] * 3, [])
+    ex = OpenAICompatExtractor("groq", api_key="k", rpm=0, max_retries=2, client=client, sleep=lambda _: None)
+    res = ex.extract_text("x")
+    assert res.invoice is None and "429" in res.error
+
+
+def test_compat_strips_code_fence_and_flags_truncation(small_dataset):
+    ds, out = small_dataset
+    gt = next(g for g in ds.cases if not g.render.scanned)
+    fenced = "```json\n" + printed_extraction(gt).model_dump_json() + "\n```"
+    ex = OpenAICompatExtractor("gemini", api_key="k", rpm=0, client=_compat_client([_ok(fenced)], []))
+    assert ex.extract_text(pdf_to_text(out / gt.render.file)).error is None
+    ex = OpenAICompatExtractor("gemini", api_key="k", rpm=0, client=_compat_client([_ok("{", "length")], []))
+    assert "truncated" in ex.extract_text("x").error
+
+
+def test_compat_requires_key(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
+        OpenAICompatExtractor("gemini")
+
+
+def test_read_key_from_env_file(tmp_path, monkeypatch):
+    from invoice_agent.extract.openai_compat import read_key
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    env = tmp_path / ".env"
+    env.write_text('# comment\nGROQ_API_KEY=abc\nGEMINI_API_KEY="xyz"\n', encoding="utf-8")
+    assert read_key("GEMINI_API_KEY", env) == "xyz" and read_key("MISSING", env) is None
+    monkeypatch.setenv("GEMINI_API_KEY", "from-env")
+    assert read_key("GEMINI_API_KEY", env) == "from-env"
