@@ -8,3 +8,4 @@ dist/
 
 # Generated dataset (reproducible: python -m invoice_agent.synth --seed 42)
 data/synthetic/
+runs/

@@ -27,6 +27,7 @@ Every week ends with something runnable plus tests, and the eval numbers are tra
 ## Week 2 — Extraction v1 (digital PDFs)
 
 - PyMuPDF text + layout extraction → LLM structured output into the `Invoice` schema
+  (default: free local model via Ollama, `qwen2.5:7b`; Claude backend optional)
 - Normalisers: dates (US vs EU ambiguity), money (`1.234,56 €`), quantities
 - Eval harness: per-field exact-match / tolerance accuracy, per-template breakdown
 - Baseline numbers into `EVAL.md`

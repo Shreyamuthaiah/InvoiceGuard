@@ -13,10 +13,12 @@ dependencies = [
     "reportlab",
     "pillow",
     "pymupdf",
+    "httpx",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest"]
+claude = ["anthropic>=2.3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
