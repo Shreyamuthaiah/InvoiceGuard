@@ -4,6 +4,8 @@ An accounts-payable pipeline that reads vendor invoices, extracts them into a ty
 with an LLM, checks them against the vendor master and purchase orders, and decides whether
 to **pay, hold for a human, or reject**, without ever paying the wrong account.
 
+![Demo: a changed bank account and a prompt-injection invoice are both held](docs/demo.gif)
+
 Built around one principle: **the LLM reads, rules decide.** The model only transcribes
 what is printed. Every decision that moves money is made by deterministic, auditable code,
 and every claim is measured against a labelled dataset.
