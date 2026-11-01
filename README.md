@@ -10,7 +10,8 @@ and every claim is measured against a labelled dataset.
 
 | | |
 | --- | --- |
-| **Extraction** (free Gemini Flash-Lite, 219 invoices) | 100% of invoices with every critical field correct |
+| **Extraction** (free Gemini Flash-Lite, 219 invoices, per-vendor layouts) | 100% of fields exact |
+| **Prompt injection** (18 invoices with hidden or visible instructions to the AI) | 0 extracted values changed |
 | **Decisions** end to end on extracted data | 100% correct, **0 false approvals** |
 | **Adversarial set** (prompt injection, look-alike vendors, split invoices) | 100% caught by the checks |
 | **Cost** | $0 (free API tier), ~12 s per invoice |
