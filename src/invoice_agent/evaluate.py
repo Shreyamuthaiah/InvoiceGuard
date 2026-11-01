@@ -98,7 +98,7 @@ def _predict_one(extractor, data: Path, gt: GroundTruth) -> dict:
 
 
 def run_predictions(extractor, data: Path, run_dir: Path, cases: list[GroundTruth], workers: int,
-                    log: Callable[[str], None] = print) -> None:
+                    log: Callable[[str], None] = print) -> bool:
     run_dir.mkdir(parents=True, exist_ok=True)
     pred_path = run_dir / "predictions.jsonl"
     done = set()
@@ -113,16 +113,31 @@ def run_predictions(extractor, data: Path, run_dir: Path, cases: list[GroundTrut
         futures = {pool.submit(_predict_one, extractor, data, gt): gt for gt in todo}
         for i, fut in enumerate(as_completed(futures), 1):
             rec = fut.result()
+            if _rate_limited(rec):
+                # Daily quota: stop now. Nothing is recorded, so a later run picks these up.
+                for other in futures:
+                    other.cancel()
+                log(f"STOPPED: {rec['error']}. Re-run the same command later to resume.")
+                return False
             f.write(json.dumps(rec) + "\n")
             f.flush()
             status = "ERR " + rec["error"] if rec.get("error") else "ok"
             log(f"[{i}/{len(todo)}] {rec['doc_id']} {status}")
+    return True
+
+
+def _rate_limited(rec: dict) -> bool:
+    """Quota / rate-limit failures say nothing about extraction quality: not scored, retried later."""
+    err = rec.get("error") or ""
+    return rec.get("invoice") is None and (err.startswith("quota exhausted") or " error 429" in err)
 
 
 def score(run_dir: Path, cases: list[GroundTruth]) -> dict:
     latest: dict[str, dict] = {}
     for line in (run_dir / "predictions.jsonl").read_text(encoding="utf-8").splitlines():
         rec = json.loads(line)
+        if _rate_limited(rec):
+            continue  # not attempted, as far as quality is concerned
         latest[rec["doc_id"]] = rec  # last write wins
     field_hits: dict[str, list[bool]] = defaultdict(list)
     by_template: dict[str, list[bool]] = defaultdict(list)
@@ -218,7 +233,7 @@ def main(argv: list[str] | None = None) -> None:
         run_dir.mkdir(parents=True, exist_ok=True)
         cfg.write_text(json.dumps(config))
         workers = a.workers or {"ollama": 1, "claude": 4}.get(a.provider, 2)
-        run_predictions(extractor, data, run_dir, cases, workers)
+        run_predictions(extractor, data, run_dir, cases, workers, log=lambda m: print(m, flush=True))
 
     summary = score(run_dir, cases)
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))

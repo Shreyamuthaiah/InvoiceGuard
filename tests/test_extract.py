@@ -249,7 +249,7 @@ def _ok(content: str, finish="stop"):
 
 
 @pytest.mark.parametrize("provider,host,model,strict", [
-    ("gemini", "generativelanguage.googleapis.com", "gemini-3.8-flash", False),
+    ("gemini", "generativelanguage.googleapis.com", "gemini-3.5-flash", False),
     ("groq", "api.groq.com", "openai/gpt-oss-120b", True),
 ])
 def test_compat_request_shape(small_dataset, provider, host, model, strict):
@@ -298,8 +298,9 @@ def test_compat_strips_code_fence_and_flags_truncation(small_dataset):
     assert "truncated" in ex.extract_text("x").error
 
 
-def test_compat_requires_key(monkeypatch):
+def test_compat_requires_key(monkeypatch, tmp_path):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)  # isolate from a real ./.env
     with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
         OpenAICompatExtractor("gemini")
 
@@ -312,3 +313,23 @@ def test_read_key_from_env_file(tmp_path, monkeypatch):
     assert read_key("GEMINI_API_KEY", env) == "xyz" and read_key("MISSING", env) is None
     monkeypatch.setenv("GEMINI_API_KEY", "from-env")
     assert read_key("GEMINI_API_KEY", env) == "from-env"
+
+
+def test_daily_quota_is_not_retried_and_stops_run(small_dataset, tmp_path):
+    from invoice_agent.extract.openai_compat import QUOTA_EXHAUSTED
+    ds, out = small_dataset
+    pdf_cases = [g for g in ds.cases if not g.render.scanned][:4]
+    quota = (429, [{"error": {"code": 429, "message": "per day limit",
+                              "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo",
+                                           "retryDelay": "23559s"}]}}], {})
+    sleeps, seen = [], []
+    responses = [_ok(printed_extraction(pdf_cases[0]).model_dump_json())] + [quota] * 10
+    ex = OpenAICompatExtractor("gemini", api_key="k", rpm=0, client=_compat_client(responses, seen),
+                               sleep=sleeps.append)
+    finished = run_predictions(ex, out, tmp_path, pdf_cases, workers=1, log=lambda _: None)
+    assert finished is False and sleeps == []  # no pointless 6-hour waits
+    lines = (tmp_path / "predictions.jsonl").read_text().splitlines()
+    assert len(lines) == 1  # only the success was recorded; the rest resume later
+    res = ex.extract_text("x")
+    assert res.error.startswith(QUOTA_EXHAUSTED) and "6.5h" in res.error
+    assert score(tmp_path, pdf_cases)["documents"] == 1

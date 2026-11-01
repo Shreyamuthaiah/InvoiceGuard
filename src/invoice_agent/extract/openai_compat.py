@@ -31,11 +31,38 @@ class Preset:
 
 PRESETS = {
     "gemini": Preset("https://generativelanguage.googleapis.com/v1beta/openai", "GEMINI_API_KEY",
-                     "gemini-3.8-flash", rpm=10, strict=False),
+                     "gemini-3.5-flash", rpm=10, strict=False),
     "groq": Preset("https://api.groq.com/openai/v1", "GROQ_API_KEY", "openai/gpt-oss-120b", rpm=3, strict=True),
 }
 
 RETRY_STATUSES = {429, 500, 502, 503, 504}
+MAX_WAIT_S = 300  # longer server-requested waits mean a daily quota, not a burst limit
+QUOTA_EXHAUSTED = "quota exhausted"
+
+
+def _retry_delay_s(resp: httpx.Response) -> float | None:
+    """Server-requested wait: `retry-after` header, or Gemini's RetryInfo `retryDelay` ("23559s")."""
+    header = resp.headers.get("retry-after")
+    if header:
+        try:
+            return float(header)
+        except ValueError:
+            pass
+    try:
+        body = resp.json()
+    except ValueError:
+        return None
+    body = body[0] if isinstance(body, list) and body else body
+    err = body.get("error") if isinstance(body, dict) else None
+    details = err.get("details", []) if isinstance(err, dict) else []  # "error" may be a plain string
+    for d in details:
+        value = d.get("retryDelay") if isinstance(d, dict) else None
+        if isinstance(value, str) and value.endswith("s"):
+            try:
+                return float(value[:-1])
+            except ValueError:
+                pass
+    return None
 
 
 def read_key(name: str, env_file: Path | None = None) -> str | None:
@@ -107,11 +134,10 @@ class OpenAICompatExtractor:
             resp = self.client.post(url, json=payload, headers=self._headers)
             if resp.status_code not in RETRY_STATUSES or attempt == self.max_retries:
                 return resp
-            retry_after = resp.headers.get("retry-after")
-            try:
-                delay = float(retry_after) if retry_after else min(10 * 2 ** attempt, 120)
-            except ValueError:
-                delay = min(10 * 2 ** attempt, 120)
+            server_delay = _retry_delay_s(resp)
+            if server_delay is not None and server_delay > MAX_WAIT_S:
+                return resp  # daily quota: waiting is pointless, let the caller stop the run
+            delay = server_delay if server_delay is not None else min(10 * 2 ** attempt, 120)
             self._sleep(delay)
         return resp  # pragma: no cover
 
@@ -130,7 +156,12 @@ class OpenAICompatExtractor:
             result.latency_s = time.perf_counter() - start
 
         if resp.status_code != 200:
-            result.error = f"{self.provider} error {resp.status_code}: {resp.text[:300]}"
+            delay = _retry_delay_s(resp)
+            if resp.status_code == 429 and delay is not None and delay > MAX_WAIT_S:
+                result.error = (f"{QUOTA_EXHAUSTED}: {self.model} free-tier quota used up; "
+                                f"resets in ~{delay / 3600:.1f}h")
+            else:
+                result.error = f"{self.provider} error {resp.status_code}: {resp.text[:1500]}"
             return result
         body = resp.json()
         usage = body.get("usage") or {}

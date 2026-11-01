@@ -310,6 +310,12 @@ class DatasetGenerator:
                     tax = money(sub * inv.tax_rate)
                     inv = inv.model_copy(update={"subtotal": sub, "tax_amount": tax, "total": sub + tax})
                     notes.append(f"Printed subtotal off by {delta} from the sum of line items.")
+                    # Labels list every check that should fire: an inflated subtotal can also
+                    # break the PO tolerance.
+                    po_total = ds.purchase_orders[-1].total
+                    if po_number and sub > po_total * (1 + PO_TOLERANCE):
+                        anomalies.append(Anomaly.PO_AMOUNT_MISMATCH)
+                        notes.append(f"Inflated subtotal {sub} also exceeds PO total {po_total} beyond tolerance.")
                 else:
                     inv = inv.model_copy(update={"total": inv.total + delta})
                     notes.append(f"Printed total off by {delta} from subtotal + tax.")
