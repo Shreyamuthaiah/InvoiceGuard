@@ -10,3 +10,4 @@ dist/
 data/synthetic/
 runs/
 .env
+data/adversarial/
