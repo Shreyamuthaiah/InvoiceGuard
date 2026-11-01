@@ -253,7 +253,7 @@ class InvoiceLedger:
             if billed > po.total * (1 + PO_TOLERANCE):
                 out.append(Finding(check="po", severity="error", anomaly=Anomaly.PO_AMOUNT_MISMATCH,
                                    message=f"PO {po.po_number} billed {billed} in total across "
-                                           f"{len(prior) + 1} invoices, above PO total {po.total}"))
+                                           f"{len(prior) + 1} invoices (before tax), above PO total {po.total}"))
         limit = thresholds.get(inv.currency)
         recent = [e for e in prior if abs((e.invoice_date - inv.invoice_date).days) <= SPLIT_WINDOW_DAYS]
         if limit is not None and recent and inv.total <= limit and all(e.total <= limit for e in recent):
@@ -263,7 +263,7 @@ class InvoiceLedger:
                 out.append(Finding(check="split", severity="error", anomaly=Anomaly.SPLIT_INVOICE,
                                    message=f"{len(recent) + 1} invoices on PO {inv.po_number} within "
                                            f"{SPLIT_WINDOW_DAYS} days ({refs}) are each under the approval "
-                                           f"threshold {limit} but total {combined}"))
+                                           f"threshold {limit} but total {combined} including tax"))
         return out
 
     def add(self, inv: Invoice, vendor: Vendor | None, ref: str) -> None:

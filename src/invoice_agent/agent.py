@@ -134,7 +134,8 @@ class ReviewAgent:
             if not po:
                 return {"error": "PO not found"}
             return {"po_number": po.po_number, "vendor_id": po.vendor_id, "issue_date": str(po.issue_date),
-                    "currency": po.currency, "status": po.status, "total": f"{po.total:.2f}",
+                    "currency": po.currency, "status": po.status, "total_before_tax": f"{po.total:.2f}",
+                    "note": "PO totals exclude tax; compare them with invoice subtotals, not totals",
                     "lines": [{"description": li.description, "quantity": str(li.quantity),
                                "unit_price": str(li.unit_price), "amount": f"{li.amount:.2f}"} for li in po.lines]}
         if name == "get_prior_invoices":
@@ -143,7 +144,8 @@ class ReviewAgent:
             if vendor_key.startswith("name:"):
                 vendor_key = f"name:{norm_name(key)}"
             entries = [e for e in self.checker.ledger.entries if e.vendor_key == vendor_key]
-            return {"invoices": [{"ref": e.ref, "invoice_number": e.invoice_number, "total": f"{e.total:.2f}",
+            return {"invoices": [{"ref": e.ref, "invoice_number": e.invoice_number,
+                                  "total_including_tax": f"{e.total:.2f}", "subtotal_before_tax": f"{e.subtotal:.2f}",
                                   "invoice_date": str(e.invoice_date), "po_number": e.po_number}
                                  for e in entries[-10:]]}
         if name == "compare_bank_details":
@@ -164,8 +166,8 @@ class ReviewAgent:
             "invoice": {"vendor_name": inv.vendor_name, "vendor_tax_id": inv.vendor_tax_id,
                         "invoice_number": inv.invoice_number, "invoice_date": str(inv.invoice_date),
                         "due_date": str(inv.due_date), "po_number": inv.po_number, "currency": inv.currency,
-                        "subtotal": f"{inv.subtotal:.2f}", "tax_amount": f"{inv.tax_amount:.2f}",
-                        "total": f"{inv.total:.2f}", "remit_to": _bank(inv.remit_to),
+                        "subtotal_before_tax": f"{inv.subtotal:.2f}", "tax_amount": f"{inv.tax_amount:.2f}",
+                        "total_including_tax": f"{inv.total:.2f}", "remit_to": _bank(inv.remit_to),
                         "line_items": [{"description": li.description, "quantity": str(li.quantity),
                                         "amount": f"{li.amount:.2f}"} for li in inv.line_items]},
         }

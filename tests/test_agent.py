@@ -98,7 +98,7 @@ def test_tools_answer_from_master_data(ds):
     assert agent._tool("get_purchase_order", {"po_number": "PO-0"}, gt.invoice, report) == {"error": "PO not found"}
     po = ds.purchase_orders[0]
     found = agent._tool("get_purchase_order", {"po_number": po.po_number.lower()}, gt.invoice, report)
-    assert found["total"] == f"{po.total:.2f}"
+    assert found["total_before_tax"] == f"{po.total:.2f}"
     assert agent._tool("compare_bank_details", {}, gt.invoice, report)["vendor_master"] is None
 
 
