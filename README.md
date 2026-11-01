@@ -1,6 +1,6 @@
 # InvoiceGuard: AI invoice-to-payment automation with fraud controls
 
-[![tests](https://github.com/Shreyamuthaiah/Invoice-processing/actions/workflows/tests.yml/badge.svg)](https://github.com/Shreyamuthaiah/Invoice-processing/actions/workflows/tests.yml)
+[![tests](https://github.com/Shreyamuthaiah/InvoiceGuard/actions/workflows/tests.yml/badge.svg)](https://github.com/Shreyamuthaiah/InvoiceGuard/actions/workflows/tests.yml)
 
 An accounts-payable pipeline that reads vendor invoices, extracts them into a typed schema
 with an LLM, checks them against the vendor master and purchase orders, and decides whether
@@ -79,8 +79,8 @@ flowchart LR
 ## Quickstart
 
 ```bash
-git clone https://github.com/Shreyamuthaiah/Invoice-processing.git
-cd Invoice-processing
+git clone https://github.com/Shreyamuthaiah/InvoiceGuard.git
+cd InvoiceGuard
 python -m venv .venv && .venv\Scripts\activate        # Windows (source .venv/bin/activate elsewhere)
 pip install -e ".[dev]"
 
