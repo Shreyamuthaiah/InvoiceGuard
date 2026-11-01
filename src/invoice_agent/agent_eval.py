@@ -16,8 +16,10 @@ Results are cached in <run>/reviews.jsonl; re-runs skip documents already explai
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from invoice_agent.agent import ReviewAgent
@@ -26,11 +28,43 @@ from invoice_agent.checks_eval import load, load_texts
 from invoice_agent.schema import Decision
 
 _NUM = re.compile(r"\d[\d,]*\.\d+|\d{3,}")
+_CTX_NUM = re.compile(r"\d+(?:\.\d+)?")  # no sign: "PO-2600104" is an identifier, not -2600104
+
+
+def _numbers(text: str) -> set[Decimal]:
+    out = set()
+    for raw in _CTX_NUM.findall(text.replace(",", "")):
+        with contextlib.suppress(InvalidOperation):
+            out.add(Decimal(raw))
+    return out
+
+
+def classify_numbers(text: str, context: str) -> tuple[list[str], list[str]]:
+    """Split the numbers in an explanation into (derived, ungrounded).
+
+    A number is grounded if it equals a number in the case/tool results by value
+    (10,000.00 == 10000). It is *derived* if it is the difference of two such numbers or
+    one divided by another (e.g. an amount over PO, a per-unit price), to the cent. Anything
+    else is ungrounded: a number the agent could not have read or computed.
+    """
+    ctx = _numbers(context)
+    ctx_text = context.replace(",", "")
+    ctx_list = sorted(n for n in ctx if n != 0)
+    derived: list[str] = []
+    ungrounded: list[str] = []
+    for raw in _NUM.findall(text):
+        value = Decimal(raw.replace(",", ""))
+        if raw.replace(",", "") in ctx_text or value in ctx:  # verbatim (ids, account tails) or same value
+            continue
+        cent = Decimal("0.01")
+        hit = any(abs(a - b).quantize(cent) == value for a in ctx_list for b in ctx_list) or \
+            any((a / b).quantize(cent) == value for a in ctx_list for b in ctx_list if b > 1)
+        (derived if hit else ungrounded).append(raw)
+    return derived, ungrounded
 
 
 def ungrounded_numbers(text: str, context: str) -> list[str]:
-    ctx = context.replace(",", "")
-    return [n for n in _NUM.findall(text) if n.replace(",", "") not in ctx]
+    return classify_numbers(text, context)[1]
 
 
 def score_review(rec: dict) -> dict:
@@ -46,6 +80,7 @@ def score_review(rec: dict) -> dict:
         "missing": sorted(expected - cited),
         "invented": sorted(cited - allowed),
         "agrees": review["recommended_action"] == rec["decision"],
+        "derived": classify_numbers(text, rec["context"])[0],
         "ungrounded": ungrounded_numbers(text, rec["context"]),
     }
 
@@ -105,11 +140,12 @@ def summarize(records: list[dict]) -> dict:
         "agreement_pct": pct("agrees"),
         "reviews_with_invented_issues": sum(1 for s in sub if s["invented"]),
         "reviews_with_ungrounded_numbers": sum(1 for s in sub if s["ungrounded"]),
+        "reviews_with_derived_numbers": sum(1 for s in sub if s["derived"]),
         "avg_tool_calls": round(sum(len(r["tool_calls"]) for r, _ in scored) / n, 1) if n else None,
         "avg_latency_s": round(sum(r["latency_s"] for r, _ in scored) / n, 1) if n else None,
         "tokens_in": sum(r["input_tokens"] for r, _ in scored),
         "tokens_out": sum(r["output_tokens"] for r, _ in scored),
-        "problems": [{"doc_id": r["doc_id"], **{k: v for k, v in s.items() if k != "submitted" and v}}
+        "problems": [{"doc_id": r["doc_id"], **{k: v for k, v in s.items() if k not in ("submitted", "derived") and v}}
                      for r, s in scored if not s["submitted"] or s["missing"] or s["invented"]
                      or not s["agrees"] or s["ungrounded"]],
     }
@@ -120,7 +156,9 @@ def render(summary: dict, title: str, sample: list[dict]) -> str:
              f"Reviews: {summary['reviews']} · submitted {summary['submitted_pct']}% · "
              f"covered every finding {summary['coverage_pct']}% · agreed with rules {summary['agreement_pct']}%  ",
              f"Reviews with invented issues: {summary['reviews_with_invented_issues']} · "
-             f"with ungrounded numbers: {summary['reviews_with_ungrounded_numbers']}  ",
+             f"with ungrounded numbers: {summary['reviews_with_ungrounded_numbers']} · "
+             f"with correctly derived numbers (differences, per-unit): "
+             f"{summary.get('reviews_with_derived_numbers', 0)}  ",
              f"Avg tool calls: {summary['avg_tool_calls']} · avg latency {summary['avg_latency_s']}s · "
              f"tokens {summary['tokens_in']} in / {summary['tokens_out']} out", ""]
     if summary["problems"]:

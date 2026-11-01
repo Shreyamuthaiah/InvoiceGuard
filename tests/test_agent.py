@@ -136,3 +136,11 @@ def test_pipeline_explains_only_held_and_rejected(ds, tmp_path):
     assert all(r.explanation is None for r in results if r.decision == Decision.APPROVE)
     audit = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
     assert sum(1 for a in audit if a["explanation"]) == len(not_approved)
+
+
+def test_grounding_accepts_formatting_and_simple_derivations():
+    from invoice_agent.agent_eval import classify_numbers
+    ctx = '{"subtotal": "1844.86", "po_total": "1677.42", "threshold": 10000, "qty": "4", "amount": "1354.92"}'
+    text = "Over the 10,000.00 threshold; 167.44 above the PO; 338.73 per chair; total 5,555.55."
+    derived, ungrounded = classify_numbers(text, ctx)
+    assert derived == ["167.44", "338.73"] and ungrounded == ["5,555.55"]
