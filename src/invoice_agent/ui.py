@@ -16,6 +16,7 @@ import base64
 import io
 import json
 import re
+import threading
 from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -25,6 +26,18 @@ from urllib.parse import parse_qs, urlparse
 from invoice_agent.checks_eval import load
 from invoice_agent.pipeline import InvoicePipeline, ProcessResult, labels_extractor, live_extractor, predictions_extractor
 from invoice_agent.schema import GroundTruth
+
+def project_root() -> Path:
+    """The repo folder (holds pyproject.toml), found from the current directory upwards, then
+    from this file's location, so the UI works no matter where it is launched from."""
+    for start in (Path.cwd(), Path(__file__).resolve()):
+        for d in [start, *start.parents]:
+            if (d / "pyproject.toml").exists() and (d / "src" / "invoice_agent").exists():
+                return d
+    return Path.cwd()
+
+
+ROOT = project_root()
 
 CACHED_RUNS = {  # dataset dir name -> eval runs to reuse, first existing wins
     "synthetic": ["runs/v2-gemini-3.1-flash-lite", "runs/gemini-3.1-flash-lite"],
@@ -55,8 +68,8 @@ class Dataset:
         self.vendors, self.pos, cases = load(path)
         self.cases: dict[str, GroundTruth] = {gt.doc_id: gt for gt in cases}
         self.predictions: Optional[Path] = next(
-            (Path(r) / "predictions.jsonl" for r in CACHED_RUNS.get(path.name, [])
-             if (Path(r) / "predictions.jsonl").exists()), None)
+            (ROOT / r / "predictions.jsonl" for r in CACHED_RUNS.get(path.name, [])
+             if (ROOT / r / "predictions.jsonl").exists()), None)
 
 
 class Session:
@@ -284,17 +297,32 @@ try{const r=await api('/api/upload?name='+encodeURIComponent(file.name),{method:
 
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--data", nargs="+", default=["data/synthetic", "data/adversarial"])
-    p.add_argument("--out", default="runs/ui", help="each session writes to a new timestamped folder here")
+    p.add_argument("--data", nargs="+", default=None,
+                   help="dataset folders (default: data/synthetic and data/adversarial in the project)")
+    p.add_argument("--out", default=None, help="session output root (default: runs/ui in the project)")
+    p.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
     p.add_argument("--provider", default="gemini")
     p.add_argument("--model", default=None)
     p.add_argument("--today", default=None, help="YYYY-MM-DD for payment scheduling; default today")
     p.add_argument("--port", type=int, default=8765)
     a = p.parse_args(argv)
     today = date.fromisoformat(a.today) if a.today else date.today()
-    session = Session([Path(d) for d in a.data], Path(a.out), a.provider, a.model, today)
-    server = HTTPServer(("127.0.0.1", a.port), make_handler(session))
-    print(f"Invoice Agent UI on http://127.0.0.1:{a.port}  (Ctrl+C to stop)", flush=True)
+    data = [Path(d) for d in a.data] if a.data else [ROOT / "data" / "synthetic", ROOT / "data" / "adversarial"]
+    found = [d for d in data if (d / "manifest.jsonl").exists()]
+    if not found:
+        raise SystemExit(f"No datasets found in {', '.join(str(d) for d in data)}.\n"
+                         f"Create one with:  python -m invoice_agent.synth --out {ROOT / 'data' / 'synthetic'}")
+    session = Session(found, Path(a.out) if a.out else ROOT / "runs" / "ui", a.provider, a.model, today)
+    try:
+        server = HTTPServer(("127.0.0.1", a.port), make_handler(session))
+    except OSError as e:
+        raise SystemExit(f"Port {a.port} is busy ({e}). Try:  python -m invoice_agent.ui --port 8800")
+    url = f"http://127.0.0.1:{a.port}"
+    print(f"Datasets: {', '.join(str(d) for d in found)}")
+    print(f"Invoice Agent UI running at {url}  (keep this window open; Ctrl+C to stop)", flush=True)
+    if not a.no_browser:
+        import webbrowser
+        threading.Timer(0.5, webbrowser.open, args=(url,)).start()  # server is already bound
     try:
         server.serve_forever()
     except KeyboardInterrupt:
