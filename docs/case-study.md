@@ -2,6 +2,8 @@
 
 *A case study: what I built, how I measured it, and what broke along the way.*
 
+*How it was made: I designed and directed the project with Claude Code, an AI coding agent. I set the goals, made the product and risk decisions, and reviewed the results; the AI wrote the code and ran the experiments. I'm now rebuilding key parts by hand to learn AI engineering properly.*
+
 ## The problem
 
 Accounts-payable teams receive invoices as PDFs and scans, in every layout imaginable. Each

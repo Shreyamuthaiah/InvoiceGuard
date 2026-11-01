@@ -24,6 +24,17 @@ and every claim is measured against a labelled dataset.
 
 Full numbers, methodology and failure analysis: [EVAL.md](EVAL.md).
 The story behind it, including what broke: [docs/case-study.md](docs/case-study.md).
+A plain-English guide to every part of the system: [docs/GUIDE.md](docs/GUIDE.md).
+
+## How this was built
+
+I designed and directed this project using **Claude Code**, an AI coding agent. I set the
+goals and made the product decisions: which problem to solve, the "LLM reads, rules decide"
+principle, free models over paid ones, which risks to test, and what counted as done. I
+also reviewed the results. The AI wrote the code and ran the experiments.
+
+I'm now learning the codebase in depth and rebuilding key components myself, as part of
+moving into AI engineering. Changes I make by hand are recorded in the commit history.
 
 ## How it works
 
