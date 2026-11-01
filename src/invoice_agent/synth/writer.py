@@ -21,8 +21,9 @@ def write_dataset(ds: Dataset, out_dir: str | Path) -> dict:
     docs.mkdir(parents=True, exist_ok=True)
     labels.mkdir(parents=True, exist_ok=True)
     # Remove stale generated files only (never anything else in out_dir).
-    for p in list(docs.glob("doc_*.pdf")) + list(docs.glob("doc_*.jpg")) + list(labels.glob("doc_*.json")):
-        p.unlink()
+    for prefix in ("doc_", "adv_"):
+        for p in list(docs.glob(f"{prefix}*.pdf")) + list(docs.glob(f"{prefix}*.jpg"))                 + list(labels.glob(f"{prefix}*.json")):
+            p.unlink()
 
     (out / "vendors.json").write_text(_dump(ds.vendors), encoding="utf-8")
     (out / "purchase_orders.json").write_text(_dump(ds.purchase_orders), encoding="utf-8")

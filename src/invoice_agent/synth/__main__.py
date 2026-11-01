@@ -14,9 +14,16 @@ def main() -> None:
     p.add_argument("--scan-ratio", type=float, default=0.3)
     p.add_argument("--out", default="data/synthetic")
     p.add_argument("--no-variety", action="store_true", help="fixed per-template look (dataset v1)")
+    p.add_argument("--adversarial", action="store_true",
+                   help="generate the adversarial set (prompt injection, look-alikes, splits) instead")
+    p.add_argument("--per-kind", type=int, default=6, help="adversarial cases per kind")
     a = p.parse_args()
-    ds = DatasetGenerator(seed=a.seed, n_vendors=a.vendors, scan_ratio=a.scan_ratio,
-                          layout_variety=not a.no_variety).generate(a.n)
+    if a.adversarial:
+        from invoice_agent.synth.adversarial import AdversarialGenerator
+        ds = AdversarialGenerator(seed=a.seed, n_vendors=a.vendors, per_kind=a.per_kind).generate()
+    else:
+        ds = DatasetGenerator(seed=a.seed, n_vendors=a.vendors, scan_ratio=a.scan_ratio,
+                              layout_variety=not a.no_variety).generate(a.n)
     stats = write_dataset(ds, a.out)
     print(json.dumps(stats, indent=2))
     print(f"Wrote dataset to {a.out}")

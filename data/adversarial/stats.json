@@ -1,0 +1,27 @@
+{
+  "documents": 50,
+  "vendors": 25,
+  "purchase_orders": 36,
+  "scanned": 0,
+  "decisions": {
+    "approve": 12,
+    "hold": 38
+  },
+  "anomalies": {
+    "split_invoice": 14,
+    "suspicious_instructions": 18,
+    "bank_details_changed": 6,
+    "unknown_vendor": 6,
+    "missing_po": 6
+  },
+  "templates": {
+    "minimal": 13,
+    "modern": 21,
+    "classic": 16
+  },
+  "currencies": {
+    "EUR": 22,
+    "USD": 22,
+    "GBP": 6
+  }
+}

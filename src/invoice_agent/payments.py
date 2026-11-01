@@ -21,7 +21,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 from invoice_agent.checks import norm_id
-from invoice_agent.schema import BankAccount, Decision, Invoice, Vendor
+from invoice_agent.schema import APPROVAL_THRESHOLDS, BankAccount, Decision, Invoice, Vendor
 
 
 class PaymentError(Exception):
@@ -30,7 +30,7 @@ class PaymentError(Exception):
 
 class PaymentPolicy(BaseModel):
     approval_threshold: dict[str, Decimal] = Field(
-        default_factory=lambda: {"USD": Decimal("10000"), "EUR": Decimal("10000"), "GBP": Decimal("8000")})
+        default_factory=lambda: dict(APPROVAL_THRESHOLDS))
     lead_days: int = 2
 
 

@@ -17,6 +17,8 @@ from pydantic import BaseModel, Field
 CENT = Decimal("0.01")
 # Invoice subtotal may exceed the PO total by at most this fraction before it is a mismatch.
 PO_TOLERANCE = Decimal("0.02")
+# Invoices with a total above this need a named human approver before payment.
+APPROVAL_THRESHOLDS = {"USD": Decimal("10000"), "EUR": Decimal("10000"), "GBP": Decimal("8000")}
 
 
 def money(value: Decimal | int | float | str) -> Decimal:
@@ -125,6 +127,8 @@ class Anomaly(str, Enum):
     UNKNOWN_VENDOR = "unknown_vendor"
     BANK_DETAILS_CHANGED = "bank_details_changed"
     ARITHMETIC_ERROR = "arithmetic_error"
+    SUSPICIOUS_INSTRUCTIONS = "suspicious_instructions"  # text addressed to an automated system
+    SPLIT_INVOICE = "split_invoice"  # one purchase billed in pieces to dodge the approval threshold
 
 
 class Decision(str, Enum):

@@ -37,7 +37,16 @@ def load_predictions(path: Path) -> dict[str, Invoice]:
     return out
 
 
-def evaluate(vendors, pos, cases, predictions: dict[str, Invoice] | None = None) -> dict:
+def load_texts(data: Path, cases: list[GroundTruth]) -> dict[str, str]:
+    """PDF text layer per document, for the suspicious-instructions check."""
+    from invoice_agent.extract import pdf_to_text
+
+    return {gt.doc_id: pdf_to_text(data / gt.render.file) for gt in cases
+            if gt.render.format == "pdf" and (data / gt.render.file).exists()}
+
+
+def evaluate(vendors, pos, cases, predictions: dict[str, Invoice] | None = None,
+             texts: dict[str, str] | None = None) -> dict:
     checker = InvoiceChecker(vendors, pos)
     tp, fp, fn = Counter(), Counter(), Counter()
     confusion: Counter = Counter()
@@ -47,7 +56,7 @@ def evaluate(vendors, pos, cases, predictions: dict[str, Invoice] | None = None)
         if predictions is not None and gt.doc_id not in predictions:
             continue
         inv = predictions[gt.doc_id] if predictions is not None else gt.invoice
-        report = checker.check(inv, ref=gt.doc_id)
+        report = checker.check(inv, ref=gt.doc_id, document_text=(texts or {}).get(gt.doc_id))
         n += 1
         got, want = set(report.anomalies), set(gt.anomalies)
         for a in Anomaly:
@@ -105,10 +114,12 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--data", default="data/synthetic")
     p.add_argument("--predictions", default=None, help="predictions.jsonl from an extraction run")
     p.add_argument("--out", default=None, help="write report markdown here")
+    p.add_argument("--no-text", action="store_true", help="skip reading PDF text (no instruction check)")
     a = p.parse_args(argv)
     vendors, pos, cases = load(Path(a.data))
     preds = load_predictions(Path(a.predictions)) if a.predictions else None
-    summary = evaluate(vendors, pos, cases, preds)
+    texts = None if a.no_text else load_texts(Path(a.data), cases)
+    summary = evaluate(vendors, pos, cases, preds, texts)
     title = f"extracted ({Path(a.predictions).parent.name})" if a.predictions else "ground-truth invoices"
     report = render(summary, title)
     if a.out:

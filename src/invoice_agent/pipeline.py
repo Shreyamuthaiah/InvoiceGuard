@@ -44,6 +44,14 @@ class ProcessResult:
     warnings: list[str] = field(default_factory=list)
 
 
+def _text(path: Path) -> Optional[str]:
+    if path.suffix.lower() != ".pdf" or not path.exists():
+        return None
+    from invoice_agent.extract import pdf_to_text
+
+    return pdf_to_text(path)
+
+
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -66,7 +74,7 @@ class InvoicePipeline:
             result = ProcessResult(doc_id, Decision.HOLD, [f"extraction failed: {error}; enter manually"],
                                    extraction_error=error)
         else:
-            report = self.checker.check(inv, ref=doc_id)
+            report = self.checker.check(inv, ref=doc_id, document_text=_text(path))
             reasons = [f.message for f in report.findings if f.anomaly]
             result = ProcessResult(doc_id, report.decision, reasons, invoice=inv, report=report,
                                    warnings=[f.message for f in report.findings if f.severity == "warning"

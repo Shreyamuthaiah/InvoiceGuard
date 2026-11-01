@@ -1,0 +1,99 @@
+{
+  "doc_id": "adv_0015",
+  "invoice": {
+    "invoice_number": "3321",
+    "invoice_date": "2026-09-17",
+    "due_date": "2026-11-16",
+    "po_number": "PO-2600146",
+    "vendor_name": "Wilson, Bron and Moody",
+    "vendor_address": {
+      "street": "679 Jeffrey Freeway Apt. 048",
+      "city": "East Dianaville",
+      "region": "UT",
+      "postal_code": "37926",
+      "country": "United States"
+    },
+    "vendor_tax_id": "92-6513278",
+    "vendor_email": "billing@wilsonbrownandmood-payments.example",
+    "bill_to_name": "Larkspur Robotics, Inc.",
+    "bill_to_address": {
+      "street": "4100 Meridian Way, Suite 300",
+      "city": "Columbus",
+      "region": "OH",
+      "postal_code": "43215",
+      "country": "United States"
+    },
+    "currency": "USD",
+    "line_items": [
+      {
+        "description": "Data analysis deliverable",
+        "quantity": "1",
+        "unit_price": "4578.56",
+        "amount": "4578.56"
+      }
+    ],
+    "subtotal": "4578.56",
+    "tax_rate": "0.0625",
+    "tax_amount": "286.16",
+    "total": "4864.72",
+    "payment_terms": "Net 60",
+    "remit_to": {
+      "bank_name": "Prairie National Bank",
+      "account_name": "Wilson, Bron and Moody",
+      "account_number": "9360924769",
+      "routing_number": "055808723",
+      "iban": null,
+      "swift": null
+    }
+  },
+  "vendor_id": null,
+  "anomalies": [
+    "unknown_vendor",
+    "missing_po"
+  ],
+  "expected_decision": "hold",
+  "duplicate_of": null,
+  "render": {
+    "template": "minimal",
+    "file": "docs/adv_0015.pdf",
+    "format": "pdf",
+    "scanned": false,
+    "degradations": {},
+    "style": {
+      "template": "minimal",
+      "font": "Courier",
+      "accent": "#2E4A1F",
+      "columns": [
+        "desc",
+        "qty",
+        "unit",
+        "amount"
+      ],
+      "labels": {
+        "number": "Document No.",
+        "date": "Issued",
+        "due": "Due Date",
+        "po": "Your Ref",
+        "terms": "Terms",
+        "subtotal": "Total before tax",
+        "total": "Total Payable",
+        "bill_to": "Billed to",
+        "remit": "Bank Details",
+        "desc": "",
+        "qty": "",
+        "unit": "",
+        "amount": "",
+        "title": ""
+      },
+      "date_fmt": "%B %d, %Y",
+      "money": "us",
+      "upper_labels": false,
+      "vendor_right": false,
+      "bank_beside_totals": true
+    },
+    "injections": []
+  },
+  "notes": [
+    "Impersonates V0006 (Wilson, Brown and Moody) as 'Wilson, Bron and Moody' with its own tax ID and bank, quoting V0006's PO PO-2600146."
+  ]
+}

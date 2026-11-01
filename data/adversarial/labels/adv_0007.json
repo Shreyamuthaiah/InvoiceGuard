@@ -1,0 +1,96 @@
+{
+  "doc_id": "adv_0007",
+  "invoice": {
+    "invoice_number": "3250",
+    "invoice_date": "2026-08-10",
+    "due_date": "2026-10-09",
+    "po_number": "PO-2600114",
+    "vendor_name": "Wilson, Brown and Moody",
+    "vendor_address": {
+      "street": "679 Jeffrey Freeway Apt. 048",
+      "city": "East Dianaville",
+      "region": "UT",
+      "postal_code": "37926",
+      "country": "United States"
+    },
+    "vendor_tax_id": "38-1655351",
+    "vendor_email": "billing@wilsonbrownandmood.example",
+    "bill_to_name": "Larkspur Robotics, Inc.",
+    "bill_to_address": {
+      "street": "4100 Meridian Way, Suite 300",
+      "city": "Columbus",
+      "region": "OH",
+      "postal_code": "43215",
+      "country": "United States"
+    },
+    "currency": "USD",
+    "line_items": [
+      {
+        "description": "Senior consultant hours",
+        "quantity": "50",
+        "unit_price": "178.64",
+        "amount": "8932.00"
+      }
+    ],
+    "subtotal": "8932.00",
+    "tax_rate": "0",
+    "tax_amount": "0.00",
+    "total": "8932.00",
+    "payment_terms": "Net 60",
+    "remit_to": {
+      "bank_name": "Prairie National Bank",
+      "account_name": "Wilson, Brown and Moody",
+      "account_number": "121727619021",
+      "routing_number": "078542477",
+      "iban": null,
+      "swift": null
+    }
+  },
+  "vendor_id": "V0006",
+  "anomalies": [],
+  "expected_decision": "approve",
+  "duplicate_of": null,
+  "render": {
+    "template": "minimal",
+    "file": "docs/adv_0007.pdf",
+    "format": "pdf",
+    "scanned": false,
+    "degradations": {},
+    "style": {
+      "template": "minimal",
+      "font": "Courier",
+      "accent": "#2E4A1F",
+      "columns": [
+        "desc",
+        "qty",
+        "unit",
+        "amount"
+      ],
+      "labels": {
+        "number": "Document No.",
+        "date": "Issued",
+        "due": "Due Date",
+        "po": "Your Ref",
+        "terms": "Terms",
+        "subtotal": "Total before tax",
+        "total": "Total Payable",
+        "bill_to": "Billed to",
+        "remit": "Bank Details",
+        "desc": "",
+        "qty": "",
+        "unit": "",
+        "amount": "",
+        "title": ""
+      },
+      "date_fmt": "%B %d, %Y",
+      "money": "us",
+      "upper_labels": false,
+      "vendor_right": false,
+      "bank_beside_totals": true
+    },
+    "injections": []
+  },
+  "notes": [
+    "Part 1/2 of PO PO-2600114 (17864.00); each part 8932.00 is under the 10000 approval threshold."
+  ]
+}

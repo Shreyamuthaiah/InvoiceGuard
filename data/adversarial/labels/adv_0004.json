@@ -1,0 +1,98 @@
+{
+  "doc_id": "adv_0004",
+  "invoice": {
+    "invoice_number": "263668",
+    "invoice_date": "2026-06-23",
+    "due_date": "2026-07-08",
+    "po_number": "PO-2600108",
+    "vendor_name": "Walker and Sons",
+    "vendor_address": {
+      "street": "2830 Robert Run Apt. 737",
+      "city": "New Madeline",
+      "region": "WY",
+      "postal_code": "80256",
+      "country": "United States"
+    },
+    "vendor_tax_id": "68-6710403",
+    "vendor_email": "ar@walkerandsons.example",
+    "bill_to_name": "Larkspur Robotics, Inc.",
+    "bill_to_address": {
+      "street": "4100 Meridian Way, Suite 300",
+      "city": "Columbus",
+      "region": "OH",
+      "postal_code": "43215",
+      "country": "United States"
+    },
+    "currency": "USD",
+    "line_items": [
+      {
+        "description": "On-site technician hours",
+        "quantity": "57",
+        "unit_price": "139.8",
+        "amount": "7968.60"
+      }
+    ],
+    "subtotal": "7968.60",
+    "tax_rate": "0.0875",
+    "tax_amount": "697.25",
+    "total": "8665.85",
+    "payment_terms": "Net 15",
+    "remit_to": {
+      "bank_name": "Summit Commerce Bank",
+      "account_name": "Walker and Sons",
+      "account_number": "487082950",
+      "routing_number": "090547706",
+      "iban": null,
+      "swift": null
+    }
+  },
+  "vendor_id": "V0024",
+  "anomalies": [
+    "split_invoice"
+  ],
+  "expected_decision": "hold",
+  "duplicate_of": null,
+  "render": {
+    "template": "modern",
+    "file": "docs/adv_0004.pdf",
+    "format": "pdf",
+    "scanned": false,
+    "degradations": {},
+    "style": {
+      "template": "modern",
+      "font": "Helvetica",
+      "accent": "#8A5A00",
+      "columns": [
+        "desc",
+        "unit",
+        "qty",
+        "amount"
+      ],
+      "labels": {
+        "number": "Invoice Number",
+        "date": "Date of Issue",
+        "due": "Pay By",
+        "po": "PO Number",
+        "terms": "Payment Terms",
+        "subtotal": "Net",
+        "total": "Please Pay",
+        "bill_to": "Invoice To",
+        "remit": "Remit Payment To",
+        "desc": "Details",
+        "qty": "Units",
+        "unit": "Price",
+        "amount": "Line Total",
+        "title": "INVOICE"
+      },
+      "date_fmt": "%B %d, %Y",
+      "money": "us",
+      "upper_labels": false,
+      "vendor_right": false,
+      "bank_beside_totals": true
+    },
+    "injections": []
+  },
+  "notes": [
+    "Part 2/3 of PO PO-2600108 (23905.80); each part 8665.85 is under the 10000 approval threshold."
+  ]
+}

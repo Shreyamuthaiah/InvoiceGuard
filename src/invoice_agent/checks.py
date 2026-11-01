@@ -17,12 +17,28 @@ from typing import Literal, Optional
 from pydantic import BaseModel
 
 from invoice_agent.schema import (
-    PO_TOLERANCE, Anomaly, Decision, Invoice, PurchaseOrder, Vendor, expected_decision,
+    APPROVAL_THRESHOLDS, PO_TOLERANCE, Anomaly, Decision, Invoice, PurchaseOrder, Vendor, expected_decision,
 )
 
 NAME_MATCH_THRESHOLD = 0.92  # similarity needed to accept a vendor by name alone
 LOOKALIKE_THRESHOLD = 0.80  # similar enough to warn about a possible impersonation
 NEAR_DUPLICATE_DAYS = 7
+SPLIT_WINDOW_DAYS = 30
+
+# Phrases addressed to an automated reader rather than to a person in accounts payable.
+INSTRUCTION_PATTERNS = [
+    r"ignore (?:all |any )?(?:previous|prior|above|earlier) (?:instructions|rules|guidance)",
+    r"\b(?:ai|a\.i\.|llm|language model|assistant|automated (?:system|processing)|chatbot|bot)\b"
+    r".{0,60}\b(?:approve|process|pay|skip|ignore|update|report|mark)",
+    r"\bpre-?approved\b",
+    r"\bauto(?:matically)?[- ]?approv",
+    r"\b(?:do not|don't|no need to|never) (?:flag|verify|check|review|question)",
+    r"\bskip (?:the |all )?(?:verification|review|checks?|approval)",
+    r"(?:^|\n)\s*system\s*:|\bsystem prompt\b",
+    r"\b(?:report|set|output|record) the (?:total|amount|po number|bank)",
+    r"\bupdate (?:the )?vendor (?:master|record|bank)",
+]
+_INSTRUCTIONS = re.compile("|".join(f"(?:{p})" for p in INSTRUCTION_PATTERNS), re.IGNORECASE)
 
 _SUFFIXES = re.compile(
     r"\b(inc|llc|ltd|plc|gmbh|ag|kg|co|corp|corporation|company|group|and|und|stiftung|ohg|eg|"
@@ -128,7 +144,10 @@ def check_po(inv: Invoice, vendor: Optional[Vendor], pos: dict[str, PurchaseOrde
         return [Finding(check="po", severity="error", anomaly=Anomaly.MISSING_PO,
                         message=f"PO {inv.po_number} does not exist")]
     out: list[Finding] = []
-    if vendor and po.vendor_id != vendor.vendor_id:
+    if vendor is None:
+        return [Finding(check="po", severity="error", anomaly=Anomaly.MISSING_PO,
+                        message=f"PO {po.po_number} was issued to {po.vendor_id}, not to this (unknown) vendor")]
+    if po.vendor_id != vendor.vendor_id:
         out.append(Finding(check="po", severity="error", anomaly=Anomaly.MISSING_PO,
                            message=f"PO {po.po_number} belongs to {po.vendor_id}, not {vendor.vendor_id}"))
     if po.status != "open":
@@ -158,6 +177,19 @@ def check_bank(inv: Invoice, vendor: Optional[Vendor]) -> list[Finding]:
     return []
 
 
+def check_instructions(document_text: Optional[str]) -> list[Finding]:
+    """Invoices are written for people. Text aimed at an AI or automated system is a red flag
+    (prompt injection), whether or not the extractor was fooled by it."""
+    if not document_text:
+        return []
+    m = _INSTRUCTIONS.search(document_text)
+    if not m:
+        return []
+    snippet = " ".join(document_text[max(0, m.start() - 20): m.end() + 40].split())
+    return [Finding(check="instructions", severity="error", anomaly=Anomaly.SUSPICIOUS_INSTRUCTIONS,
+                    message=f"document contains instructions aimed at an automated system: \"...{snippet}...\"")]
+
+
 def check_arithmetic(inv: Invoice) -> list[Finding]:
     return [Finding(check="arithmetic", severity="error", anomaly=Anomaly.ARITHMETIC_ERROR, message=m)
             for m in inv.arithmetic_issues()]
@@ -170,6 +202,8 @@ class _Seen:
     total: Decimal
     invoice_date: date
     ref: str
+    po_number: str = ""
+    subtotal: Decimal = Decimal("0")
 
 
 @dataclass
@@ -197,26 +231,61 @@ class InvoiceLedger:
                                            f"days as {e.ref} under a different number"))
         return out
 
+    def check_billing(self, inv: Invoice, vendor: Optional[Vendor], po: Optional[PurchaseOrder],
+                      thresholds: dict[str, Decimal]) -> list[Finding]:
+        """Cumulative billing against one PO: over-billing and threshold splitting."""
+        if not inv.po_number:
+            return []
+        key, po_key = self.vendor_key(inv, vendor), norm_id(inv.po_number)
+        prior = [e for e in self.entries if e.vendor_key == key and e.po_number == po_key]
+        if not prior:
+            return []
+        out: list[Finding] = []
+        if po is not None:
+            billed = sum((e.subtotal for e in prior), Decimal("0")) + inv.subtotal
+            if billed > po.total * (1 + PO_TOLERANCE):
+                out.append(Finding(check="po", severity="error", anomaly=Anomaly.PO_AMOUNT_MISMATCH,
+                                   message=f"PO {po.po_number} billed {billed} in total across "
+                                           f"{len(prior) + 1} invoices, above PO total {po.total}"))
+        limit = thresholds.get(inv.currency)
+        recent = [e for e in prior if abs((e.invoice_date - inv.invoice_date).days) <= SPLIT_WINDOW_DAYS]
+        if limit is not None and recent and inv.total <= limit and all(e.total <= limit for e in recent):
+            combined = sum((e.total for e in recent), Decimal("0")) + inv.total
+            if combined > limit:
+                refs = ", ".join(e.ref for e in recent)
+                out.append(Finding(check="split", severity="error", anomaly=Anomaly.SPLIT_INVOICE,
+                                   message=f"{len(recent) + 1} invoices on PO {inv.po_number} within "
+                                           f"{SPLIT_WINDOW_DAYS} days ({refs}) are each under the approval "
+                                           f"threshold {limit} but total {combined}"))
+        return out
+
     def add(self, inv: Invoice, vendor: Optional[Vendor], ref: str) -> None:
         self.entries.append(_Seen(self.vendor_key(inv, vendor), norm_id(inv.invoice_number),
-                                  inv.total, inv.invoice_date, ref))
+                                  inv.total, inv.invoice_date, ref, norm_id(inv.po_number), inv.subtotal))
 
 
 # ---------- orchestration ----------
 
 class InvoiceChecker:
-    def __init__(self, vendors: list[Vendor], purchase_orders: list[PurchaseOrder]) -> None:
+    def __init__(self, vendors: list[Vendor], purchase_orders: list[PurchaseOrder],
+                 approval_thresholds: dict[str, Decimal] | None = None) -> None:
         self.master = VendorMaster(vendors)
         self.pos = {po.po_number.upper(): po for po in purchase_orders}
         self.ledger = InvoiceLedger()
+        self.thresholds = approval_thresholds or dict(APPROVAL_THRESHOLDS)
 
-    def check(self, inv: Invoice, ref: str = "", record: bool = True) -> CheckReport:
+    def check(self, inv: Invoice, ref: str = "", record: bool = True,
+              document_text: Optional[str] = None) -> CheckReport:
         match, findings = self.master.resolve(inv)
         vendor = match.vendor
         findings += self.ledger.check(inv, vendor)
         findings += check_po(inv, vendor, self.pos)
+        if not any(f.anomaly == Anomaly.DUPLICATE for f in findings):
+            po = self.pos.get((inv.po_number or "").strip().upper())
+            findings += self.ledger.check_billing(inv, vendor, po, self.thresholds)
         findings += check_bank(inv, vendor)
         findings += check_arithmetic(inv)
+        findings += check_instructions(document_text)
         report = CheckReport(match, findings)
         if record and Anomaly.DUPLICATE not in report.anomalies:
             self.ledger.add(inv, vendor, ref)

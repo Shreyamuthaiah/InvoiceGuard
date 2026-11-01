@@ -40,7 +40,8 @@ def test_files_and_labels_exist(dataset):
 def test_every_anomaly_type_present(dataset):
     ds, _, _ = dataset
     seen = {a for gt in ds.cases for a in gt.anomalies}
-    assert seen == set(Anomaly)
+    adversarial_only = {Anomaly.SUSPICIOUS_INSTRUCTIONS, Anomaly.SPLIT_INVOICE}
+    assert seen == set(Anomaly) - adversarial_only
     assert any(not gt.anomalies for gt in ds.cases)
 
 
