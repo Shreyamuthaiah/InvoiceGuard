@@ -104,6 +104,7 @@ class InvoicePipeline:
             "invoice_number": inv.invoice_number if inv else None,
             "total": f"{inv.total:.2f}" if inv else None,
             "currency": inv.currency if inv else None,
+            "invoice": inv.model_dump(mode="json") if inv else None,
             "findings": [f.model_dump(mode="json") for f in r.report.findings] if r.report else [],
             "decision": r.decision.value,
             "reasons": r.reasons,
