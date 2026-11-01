@@ -16,6 +16,7 @@ from collections import Counter
 from pathlib import Path
 
 from invoice_agent.checks import InvoiceChecker
+from invoice_agent.evaluate import prediction_invoice
 from invoice_agent.schema import (
     Anomaly,
     Decision,
@@ -45,7 +46,7 @@ def load_predictions(*paths: Path) -> tuple[dict[str, Invoice], set[str]]:
         for line in path.read_text(encoding="utf-8").splitlines():
             rec = json.loads(line)
             if rec.get("invoice"):
-                out[rec["doc_id"]] = Invoice.model_validate(rec["invoice"])
+                out[rec["doc_id"]] = prediction_invoice(rec)
                 if rec.get("uncertain_fields"):
                     uncertain.add(rec["doc_id"])
                 else:

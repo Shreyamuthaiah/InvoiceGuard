@@ -45,12 +45,14 @@ class BankAccount(BaseModel):
     swift: str | None = None
 
     def same_destination(self, other: BankAccount) -> bool:
-        """True if both describe the same destination account (ignores display names)."""
-        return (self.account_number, self.routing_number, self.iban) == (
-            other.account_number,
-            other.routing_number,
-            other.iban,
-        )
+        """True if both describe the same destination account (ignores display names).
+        An IBAN identifies the account on its own; otherwise account + routing number do."""
+        def compact(v: str | None) -> str:
+            return "".join((v or "").split()).upper()
+        if self.iban or other.iban:
+            return compact(self.iban) == compact(other.iban)
+        return (compact(self.account_number), compact(self.routing_number)) == (
+            compact(other.account_number), compact(other.routing_number))
 
 
 class Vendor(BaseModel):

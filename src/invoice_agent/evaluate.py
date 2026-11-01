@@ -38,6 +38,19 @@ def _compact(s: str | None) -> str:
     return re.sub(r"[\s\-]", "", s or "").upper()
 
 
+def prediction_invoice(rec: dict) -> Invoice:
+    """The invoice for a stored prediction. Re-normalises the raw model output with the current
+    code when available, so fixes to the deterministic normalisers show up without API calls."""
+    if rec.get("raw"):
+        from invoice_agent.extract.models import ExtractedInvoice
+        from invoice_agent.extract.normalize import to_invoice
+        try:
+            return to_invoice(ExtractedInvoice.model_validate(rec["raw"]))[0]
+        except ValueError:
+            pass
+    return Invoice.model_validate(rec["invoice"])
+
+
 def compare(pred: Invoice, gold: Invoice) -> dict[str, bool]:
     r: dict[str, bool] = {}
     for f in ["invoice_number", "po_number", "vendor_name", "vendor_email", "bill_to_name", "payment_terms"]:
@@ -164,7 +177,7 @@ def score(run_dir: Path, cases: list[GroundTruth]) -> dict:
             errors.append({"doc_id": gt.doc_id, "error": rec.get("error")})
             result = {k: False for k in compare(gt.invoice, gt.invoice)}  # every field counts as wrong
         else:
-            result = compare(Invoice.model_validate(rec["invoice"]), gt.invoice)
+            result = compare(prediction_invoice(rec), gt.invoice)
             wrong = [k for k, ok in result.items() if not ok and k != "critical_all"]
             if wrong:
                 failures.append({"doc_id": gt.doc_id, "template": gt.render.template, "wrong": wrong})

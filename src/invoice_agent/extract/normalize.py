@@ -151,10 +151,13 @@ def _address(a: ExtractedAddress) -> Address:
 
 def _bank(b: ExtractedBank) -> BankAccount:
     clean = lambda x: re.sub(r"\s+", "", x) if x else None  # noqa: E731
+    iban, account = clean(b.iban), clean(b.account_number)
+    if account and iban and account.upper() == iban.upper():
+        account = None  # models sometimes copy the IBAN into "account number" too
     return BankAccount(
         bank_name=_s(b.bank_name), account_name=_s(b.account_name),
-        account_number=clean(b.account_number), routing_number=clean(b.routing_number),
-        iban=clean(b.iban), swift=clean(b.swift),
+        account_number=account, routing_number=clean(b.routing_number),
+        iban=iban, swift=clean(b.swift),
     )
 
 

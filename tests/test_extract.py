@@ -46,6 +46,20 @@ def test_parse_money_rounds_and_rejects_garbage():
         parse_number("n/a")
 
 
+def test_iban_copied_into_account_number_is_dropped_and_banks_compare_by_iban():
+    from invoice_agent.extract.normalize import _bank
+    from invoice_agent.schema import BankAccount
+    b = _bank(ExtractedBank(bank_name="X", account_name="Y", account_number="DE50 3219 6168",
+                            iban="DE5032196168", swift="ABCDEFXX"))
+    assert b.account_number is None and b.iban == "DE5032196168"
+    master = BankAccount(bank_name="X", account_name="Y", iban="DE50 3219 6168")
+    assert master.same_destination(b)
+    assert not master.same_destination(b.model_copy(update={"iban": "DE5032196169"}))
+    us = BankAccount(bank_name="Z", account_name="Y", account_number="123", routing_number="011000015")
+    assert us.same_destination(us.model_copy(update={"bank_name": "renamed"}))
+    assert not us.same_destination(us.model_copy(update={"account_number": "124"}))
+
+
 @pytest.mark.parametrize("text,expected", [
     ("8.75%", "0.0875"), ("(19%)", "0.19"), ("Tax (0%)", "0"), ("VAT 20%", "0.2"), ("0.0725", "0.0725"),
 ])
