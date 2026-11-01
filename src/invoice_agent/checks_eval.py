@@ -16,7 +16,9 @@ from collections import Counter
 from pathlib import Path
 
 from invoice_agent.checks import InvoiceChecker
-from invoice_agent.schema import Anomaly, Decision, GroundTruth, Invoice, PurchaseOrder, Vendor
+from invoice_agent.schema import (
+    Anomaly, Decision, GroundTruth, Invoice, PurchaseOrder, Vendor, expected_decision,
+)
 
 
 def load(data: Path) -> tuple[list[Vendor], list[PurchaseOrder], list[GroundTruth]]:
@@ -52,22 +54,35 @@ def evaluate(vendors, pos, cases, predictions: dict[str, Invoice] | None = None,
     confusion: Counter = Counter()
     mistakes = []
     n = 0
+    processed = {gt.doc_id for gt in cases if predictions is None or gt.doc_id in predictions}
+    by_id = {gt.doc_id: gt for gt in cases}
+    first_sightings: list[str] = []
+    stand_ins: dict[str, str] = {}  # unprocessed original -> its first processed copy
     for gt in cases:
-        if predictions is not None and gt.doc_id not in predictions:
+        if gt.doc_id not in processed:
             continue
         inv = predictions[gt.doc_id] if predictions is not None else gt.invoice
         report = checker.check(inv, ref=gt.doc_id, document_text=(texts or {}).get(gt.doc_id))
         n += 1
-        got, want = set(report.anomalies), set(gt.anomalies)
+        want_list = list(gt.anomalies)
+        if Anomaly.DUPLICATE in want_list and gt.duplicate_of not in processed \
+                and gt.duplicate_of not in stand_ins:
+            # The original wasn't in this run (e.g. a scan in a PDF-only run), so the first copy is
+            # the first sighting: judge it like its original. Later copies are still duplicates.
+            want_list = list(by_id[gt.duplicate_of].anomalies) if gt.duplicate_of in by_id else []
+            stand_ins[gt.duplicate_of] = gt.doc_id
+            first_sightings.append(gt.doc_id)
+        expected = expected_decision(want_list)
+        got, want = set(report.anomalies), set(want_list)
         for a in Anomaly:
             tp[a] += a in got and a in want
             fp[a] += a in got and a not in want
             fn[a] += a not in got and a in want
-        confusion[(gt.expected_decision.value, report.decision.value)] += 1
-        if got != want or report.decision != gt.expected_decision:
+        confusion[(expected.value, report.decision.value)] += 1
+        if got != want or report.decision != expected:
             mistakes.append({"doc_id": gt.doc_id, "expected": sorted(a.value for a in want),
                              "got": sorted(a.value for a in got), "decision": report.decision.value,
-                             "expected_decision": gt.expected_decision.value,
+                             "expected_decision": expected.value,
                              "findings": [f.message for f in report.findings if f.severity != "info"]})
     per_anomaly = {}
     for a in Anomaly:
@@ -86,6 +101,7 @@ def evaluate(vendors, pos, cases, predictions: dict[str, Invoice] | None = None,
         "per_anomaly": per_anomaly,
         "confusion": {f"{e}->{g}": v for (e, g), v in sorted(confusion.items())},
         "mistakes": mistakes,
+        "duplicates_of_unprocessed": first_sightings,
     }
 
 
@@ -99,6 +115,11 @@ def render(summary: dict, title: str) -> str:
              "| Anomaly | Precision % | Recall % | Support |", "|---|---|---|---|"]
     lines += [f"| {k} | {f(v['precision'])} | {f(v['recall'])} | {v['support']} |"
               for k, v in summary["per_anomaly"].items()]
+    if summary.get("duplicates_of_unprocessed"):
+        lines += ["", f"Note: {len(summary['duplicates_of_unprocessed'])} duplicate(s) whose original was not "
+                  f"in this run (e.g. a scan) were judged as first sightings: "
+                  f"{', '.join(summary['duplicates_of_unprocessed'])}. "
+                  "The payments service's idempotency key still blocks paying them twice."]
     lines += ["", "| Expected -> got | Count |", "|---|---|"]
     lines += [f"| {k} | {v} |" for k, v in summary["confusion"].items()]
     if summary["mistakes"]:

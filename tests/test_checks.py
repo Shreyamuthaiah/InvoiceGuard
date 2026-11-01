@@ -107,3 +107,11 @@ def test_extraction_errors_flow_into_decisions(ds):
     summary = evaluate(ds.vendors, ds.purchase_orders, ds.cases, preds)
     assert summary["false_approves"] == 0
     assert any(m["doc_id"] == target.doc_id for m in summary["mistakes"])
+
+
+def test_duplicate_of_unprocessed_original_is_a_first_sighting(ds):
+    dup = next(g for g in ds.cases if Anomaly.DUPLICATE in g.anomalies)
+    preds = {g.doc_id: g.invoice for g in ds.cases if g.doc_id != dup.duplicate_of}
+    summary = evaluate(ds.vendors, ds.purchase_orders, ds.cases, preds)
+    assert dup.doc_id in summary["duplicates_of_unprocessed"]
+    assert summary["mistakes"] == [] and summary["false_approves"] == 0

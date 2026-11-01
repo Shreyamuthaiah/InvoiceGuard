@@ -11,3 +11,4 @@ data/synthetic/
 runs/
 .env
 data/adversarial/
+data/synthetic-v1/
