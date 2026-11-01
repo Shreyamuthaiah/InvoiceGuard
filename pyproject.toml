@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "ruff", "mypy"]
 claude = ["anthropic>=2.3"]
 
 [tool.setuptools.packages.find]
@@ -26,3 +26,21 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP", "SIM"]
+ignore = ["SIM108"]  # explicit if/else often reads better than a long ternary
+
+[tool.ruff.lint.per-file-ignores]
+# Drawing code keeps coordinate pairs on one line; the UI embeds its HTML/JS page as a string.
+"src/invoice_agent/synth/render.py" = ["E702", "E501"]
+"src/invoice_agent/ui.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+check_untyped_defs = true

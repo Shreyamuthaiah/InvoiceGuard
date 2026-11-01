@@ -17,11 +17,11 @@ import argparse
 import hashlib
 import json
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Callable, Optional
 
 from invoice_agent.checks import CheckReport, InvoiceChecker
 from invoice_agent.payments import MockPaymentsAPI, Payment, PaymentError, PaymentPolicy
@@ -36,16 +36,16 @@ class ProcessResult:
     doc_id: str
     decision: Decision
     reasons: list[str]
-    invoice: Optional[Invoice] = None
-    report: Optional[CheckReport] = None
-    payment: Optional[Payment] = None
+    invoice: Invoice | None = None
+    report: CheckReport | None = None
+    payment: Payment | None = None
     payment_created: bool = False
-    extraction_error: Optional[str] = None
+    extraction_error: str | None = None
     warnings: list[str] = field(default_factory=list)
-    explanation: Optional[dict] = None  # review agent output for held/rejected invoices
+    explanation: dict | None = None  # review agent output for held/rejected invoices
 
 
-def _text(path: Path) -> Optional[str]:
+def _text(path: Path) -> str | None:
     if path.suffix.lower() != ".pdf" or not path.exists():
         return None
     from invoice_agent.extract import pdf_to_text
@@ -90,10 +90,14 @@ class InvoicePipeline:
                 # Two reads of the document disagreed: a person checks the values before paying.
                 result.decision = Decision.HOLD
                 result.reasons.append("extraction uncertain: two reads disagreed on " + ", ".join(uncertain))
-            if result.decision == Decision.APPROVE:
+            vendor = report.vendor_match.vendor
+            if result.decision == Decision.APPROVE and vendor is None:  # defensive: never pay an unmatched vendor
+                result.decision = Decision.HOLD
+                result.reasons.append("no vendor-master match to pay")
+            if result.decision == Decision.APPROVE and vendor is not None:
                 try:
                     result.payment, result.payment_created = self.payments.schedule(
-                        inv, report.vendor_match.vendor, report.decision, self.today, source_ref=doc_id)
+                        inv, vendor, report.decision, self.today, source_ref=doc_id)
                 except PaymentError as e:  # a payment control tripped: never pay, send to a human
                     result.decision = Decision.HOLD
                     result.reasons.append(f"payment blocked: {e}")
@@ -132,17 +136,19 @@ class InvoicePipeline:
         with self.audit_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
         if r.decision != Decision.APPROVE or (r.payment and r.payment.status == "awaiting_approval"):
+            waiting = r.payment.payment_id if r.payment and r.payment.status == "awaiting_approval" else None
             item = {"doc_id": r.doc_id, "decision": r.decision.value, "reasons": r.reasons,
-                    "warnings": r.warnings, "explanation": r.explanation, "vendor": record["vendor"], "invoice_number": record["invoice_number"],
-                    "total": record["total"], "currency": record["currency"],
-                    "awaiting_approval": r.payment.payment_id if r.payment and r.payment.status == "awaiting_approval" else None}
+                    "warnings": r.warnings, "explanation": r.explanation, "vendor": record["vendor"],
+                    "invoice_number": record["invoice_number"], "total": record["total"],
+                    "currency": record["currency"], "awaiting_approval": waiting}
             with self.queue_path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(item) + "\n")
 
 
 def summarize(results: list[ProcessResult], payments: MockPaymentsAPI, today: date) -> str:
     decisions = Counter(r.decision.value for r in results)
-    sched, waiting = defaultdict(Decimal), defaultdict(Decimal)
+    sched: defaultdict[str, Decimal] = defaultdict(Decimal)
+    waiting: defaultdict[str, Decimal] = defaultdict(Decimal)
     late = 0
     for r in results:
         if r.payment and r.payment_created:
@@ -194,7 +200,7 @@ def predictions_extractor(path: Path) -> ExtractFn:
     return fn
 
 
-def live_extractor(provider: str, model: Optional[str]) -> ExtractFn:
+def live_extractor(provider: str, model: str | None) -> ExtractFn:
     from invoice_agent.extract import make_extractor
     from invoice_agent.extract.document import extract_document
 

@@ -100,9 +100,9 @@ def test_pipeline_end_to_end_on_labels(ds, tmp_path):
     approved = [r for r in results if r.decision == Decision.APPROVE]
     assert approved and all(r.payment and r.payment_created for r in approved)
     assert all(r.payment is None for r in results if r.decision != Decision.APPROVE)
-    audit = [json.loads(l) for l in (out / "audit.jsonl").read_text().splitlines()]
+    audit = [json.loads(line) for line in (out / "audit.jsonl").read_text().splitlines()]
     assert len(audit) == len(docs) and all(a["file_sha256"] for a in audit)
-    queue = [json.loads(l) for l in (out / "review_queue.jsonl").read_text().splitlines()]
+    queue = [json.loads(line) for line in (out / "review_queue.jsonl").read_text().splitlines()]
     assert {q["doc_id"] for q in queue} >= {r.doc_id for r in results if r.decision != Decision.APPROVE}
     # Re-processing the same inbox schedules nothing new.
     again = run(out)

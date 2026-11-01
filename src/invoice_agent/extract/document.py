@@ -14,7 +14,6 @@ Self-check policy (conservative on purpose):
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from invoice_agent.extract.base import ExtractionResult, Extractor
 from invoice_agent.extract.pdf_text import has_text_layer, pdf_to_text
@@ -52,7 +51,7 @@ def validation_issues(res: ExtractionResult) -> list[str]:
     return issues
 
 
-def _read(extractor: Extractor, path: Path, hint: Optional[str]) -> ExtractionResult:
+def _read(extractor: Extractor, path: Path, hint: str | None) -> ExtractionResult:
     suffix = path.suffix.lower()
     if suffix == ".pdf" and has_text_layer(path):
         res = extractor.extract_text(pdf_to_text(path), hint=hint)

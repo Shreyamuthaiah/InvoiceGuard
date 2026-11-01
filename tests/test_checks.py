@@ -61,7 +61,8 @@ def test_lookalike_vendor_with_other_tax_id_is_unknown(ds):
 def test_po_not_found_and_wrong_vendor(ds):
     checker = fresh(ds)
     inv = clean_case(ds).invoice
-    assert Anomaly.MISSING_PO in checker.check(inv.model_copy(update={"po_number": "PO-0000000"}), record=False).anomalies
+    no_such_po = inv.model_copy(update={"po_number": "PO-0000000"})
+    assert Anomaly.MISSING_PO in checker.check(no_such_po, record=False).anomalies
     vendor_id = checker.master.by_tax_id[norm_id(inv.vendor_tax_id)].vendor_id
     other_po = next(p for p in ds.purchase_orders if p.vendor_id != vendor_id)
     report = checker.check(inv.model_copy(update={"po_number": other_po.po_number}), record=False)

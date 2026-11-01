@@ -6,7 +6,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Optional
+from typing import Literal
 
 from faker import Faker
 
@@ -47,7 +47,7 @@ DATE_SPAN_DAYS = 280
 class _VendorState:
     vendor: Vendor
     template: str
-    style: Optional[Style]
+    style: Style | None
     pattern: str
     prefix: str
     next_n: int
@@ -101,7 +101,7 @@ class DatasetGenerator:
             city=f.city(),
             region=region,
             postal_code=f.postcode(),
-            country=catalog.CURRENCIES[cur]["country"],
+            country=str(catalog.CURRENCIES[cur]["country"]),
         )
 
     def _bank(self, cur: str, account_name: str) -> BankAccount:
@@ -162,7 +162,7 @@ class DatasetGenerator:
         return _VendorState(vendor=vendor, template=template, style=self._style(template, cur, vendor_id),
                             pattern=pattern, prefix=initials, next_n=next_n)
 
-    def _style(self, template: str, currency: str, key: str) -> Optional[Style]:
+    def _style(self, template: str, currency: str, key: str) -> Style | None:
         """Visual style from its own RNG: changing styles never changes invoice content."""
         if not self.layout_variety:
             return None
@@ -222,9 +222,9 @@ class DatasetGenerator:
             remit_to=remit_to,
         )
 
-    def _render_info(self, doc_id: str, template: str, style: Optional[Style] = None) -> RenderInfo:
+    def _render_info(self, doc_id: str, template: str, style: Style | None = None) -> RenderInfo:
         scanned = self.rng.random() < self.scan_ratio
-        fmt = "jpg" if scanned else "pdf"
+        fmt: Literal["pdf", "jpg"] = "jpg" if scanned else "pdf"
         return RenderInfo(template=template, file=f"docs/{doc_id}.{fmt}", format=fmt, scanned=scanned,
                           style=style)
 
@@ -242,13 +242,13 @@ class DatasetGenerator:
 
             if kind == Anomaly.DUPLICATE.value:
                 orig = self.rng.choice(clean_cases)
-                anomalies = [Anomaly.DUPLICATE]
+                dup_anomalies = [Anomaly.DUPLICATE]
                 ds.cases.append(GroundTruth(
                     doc_id=doc_id,
                     invoice=orig.invoice.model_copy(deep=True),
                     vendor_id=orig.vendor_id,
-                    anomalies=anomalies,
-                    expected_decision=expected_decision(anomalies),
+                    anomalies=dup_anomalies,
+                    expected_decision=expected_decision(dup_anomalies),
                     duplicate_of=orig.doc_id,
                     render=self._render_info(doc_id, orig.render.template, orig.render.style),
                     notes=[f"Re-sent copy of {orig.doc_id} (same vendor + invoice number)."],
@@ -292,7 +292,8 @@ class DatasetGenerator:
                 base = items[idx]
                 factor = Decimal(str(round(self.rng.uniform(1.08, 1.30), 3)))
                 while True:
-                    unit = money(base.unit_price * factor) if base.unit_price >= 1 else (base.unit_price * factor).quantize(Decimal("0.0001"))
+                    scaled = base.unit_price * factor
+                    unit = money(scaled) if base.unit_price >= 1 else scaled.quantize(Decimal("0.0001"))
                     new = base.model_copy(update={"unit_price": unit, "amount": money(base.quantity * unit)})
                     new_sub = sum((li.amount for li in items), Decimal("0")) - base.amount + new.amount
                     if new_sub > po_total * (1 + PO_TOLERANCE + Decimal("0.01")):
@@ -332,7 +333,8 @@ class DatasetGenerator:
                     inv = inv.model_copy(update={"total": inv.total + delta})
                     notes.append(f"Printed total off by {delta} from subtotal + tax.")
 
-            template = vs.template if anomalies != [Anomaly.UNKNOWN_VENDOR, Anomaly.MISSING_PO] else self.rng.choice(catalog.TEMPLATES)
+            unknown = anomalies == [Anomaly.UNKNOWN_VENDOR, Anomaly.MISSING_PO]
+            template = self.rng.choice(catalog.TEMPLATES) if unknown else vs.template
             gt = GroundTruth(
                 doc_id=doc_id,
                 invoice=inv,

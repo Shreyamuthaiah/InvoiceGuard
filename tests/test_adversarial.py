@@ -116,8 +116,9 @@ def test_po_overbilling_across_invoices():
 
 
 def test_adversarial_cli(tmp_path):
-    from invoice_agent.synth.__main__ import main
     import sys
+
+    from invoice_agent.synth.__main__ import main
     argv = sys.argv
     sys.argv = ["synth", "--adversarial", "--per-kind", "2", "--vendors", "6", "--out", str(tmp_path)]
     try:

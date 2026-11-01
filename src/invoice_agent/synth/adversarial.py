@@ -21,8 +21,16 @@ from datetime import timedelta
 from decimal import Decimal
 
 from invoice_agent.schema import (
-    APPROVAL_THRESHOLDS, Anomaly, GroundTruth, Injection, Invoice, LineItem, PurchaseOrder, RenderInfo,
-    expected_decision, money,
+    APPROVAL_THRESHOLDS,
+    Anomaly,
+    GroundTruth,
+    Injection,
+    Invoice,
+    LineItem,
+    PurchaseOrder,
+    RenderInfo,
+    expected_decision,
+    money,
 )
 from invoice_agent.synth import catalog
 from invoice_agent.synth.generator import DATE_SPAN_DAYS, START_DATE, Dataset, DatasetGenerator, _VendorState

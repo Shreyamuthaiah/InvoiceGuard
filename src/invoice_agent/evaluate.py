@@ -13,9 +13,9 @@ import json
 import re
 import sys
 from collections import defaultdict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Callable, Optional
 
 from invoice_agent.schema import Address, GroundTruth, Invoice
 
@@ -26,7 +26,7 @@ CRITICAL_FIELDS = [
 ]
 
 
-def _norm(s: Optional[str]) -> str:
+def _norm(s: str | None) -> str:
     return re.sub(r"\s+", " ", (s or "").strip()).casefold()
 
 
@@ -34,7 +34,7 @@ def _addr(a: Address) -> str:
     return _norm(" ".join([a.street, a.city, a.region, a.postal_code, a.country]))
 
 
-def _compact(s: Optional[str]) -> str:
+def _compact(s: str | None) -> str:
     return re.sub(r"[\s\-]", "", s or "").upper()
 
 
@@ -57,7 +57,7 @@ def compare(pred: Invoice, gold: Invoice) -> dict[str, bool]:
     r["line_items.exact"] = r["line_items.count"] and all(
         _norm(p.description) == _norm(g.description) and p.quantity == g.quantity
         and p.unit_price == g.unit_price and p.amount == g.amount
-        for p, g in zip(pred.line_items, gold.line_items)
+        for p, g in zip(pred.line_items, gold.line_items, strict=True)
     )
     r["critical_all"] = all(r[f] for f in CRITICAL_FIELDS)
     return r

@@ -10,7 +10,8 @@ import pytest
 
 from invoice_agent.payments import PaymentError, PaymentPolicy
 from invoice_agent.pipeline import InvoicePipeline, labels_extractor
-from invoice_agent.review import ReviewDesk, main as review_main
+from invoice_agent.review import ReviewDesk
+from invoice_agent.review import main as review_main
 from invoice_agent.synth import DatasetGenerator, write_dataset
 from invoice_agent.ui import Session, make_handler
 
@@ -48,7 +49,7 @@ def test_queue_approve_cancel_are_audited(run_dir):
     with pytest.raises(PaymentError):
         desk.cancel(pid, "Dana", "")
     desk.cancel(pid, "Dana", "vendor asked to re-issue")
-    actions = [json.loads(l) for l in (run_dir / "audit.jsonl").read_text().splitlines()]
+    actions = [json.loads(line) for line in (run_dir / "audit.jsonl").read_text().splitlines()]
     assert [a["action"] for a in actions if "action" in a] == ["approve_payment", "cancel_payment"]
     assert actions[-1]["by"] == "Dana" and actions[-1]["reason"] == "vendor asked to re-issue"
 

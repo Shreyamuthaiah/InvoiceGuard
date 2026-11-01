@@ -12,12 +12,19 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from difflib import SequenceMatcher
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
 
 from invoice_agent.schema import (
-    APPROVAL_THRESHOLDS, PO_TOLERANCE, Anomaly, Decision, Invoice, PurchaseOrder, Vendor, expected_decision,
+    APPROVAL_THRESHOLDS,
+    PO_TOLERANCE,
+    Anomaly,
+    Decision,
+    Invoice,
+    PurchaseOrder,
+    Vendor,
+    expected_decision,
 )
 
 NAME_MATCH_THRESHOLD = 0.92  # similarity needed to accept a vendor by name alone
@@ -53,7 +60,7 @@ def norm_name(name: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def norm_id(value: Optional[str]) -> str:
+def norm_id(value: str | None) -> str:
     return re.sub(r"[^0-9A-Za-z]", "", value or "").upper()
 
 
@@ -65,13 +72,13 @@ class Finding(BaseModel):
     check: str
     severity: Literal["info", "warning", "error"]
     message: str
-    anomaly: Optional[Anomaly] = None
+    anomaly: Anomaly | None = None
 
 
 @dataclass
 class VendorMatch:
-    vendor: Optional[Vendor]
-    method: Optional[Literal["tax_id", "name"]]
+    vendor: Vendor | None
+    method: Literal["tax_id", "name"] | None
     score: float = 0.0
 
 
@@ -135,7 +142,7 @@ class VendorMaster:
 
 # ---------- individual checks ----------
 
-def check_po(inv: Invoice, vendor: Optional[Vendor], pos: dict[str, PurchaseOrder]) -> list[Finding]:
+def check_po(inv: Invoice, vendor: Vendor | None, pos: dict[str, PurchaseOrder]) -> list[Finding]:
     if not inv.po_number:
         return [Finding(check="po", severity="error", anomaly=Anomaly.MISSING_PO,
                         message="invoice does not reference a purchase order")]
@@ -167,7 +174,7 @@ def check_po(inv: Invoice, vendor: Optional[Vendor], pos: dict[str, PurchaseOrde
     return out
 
 
-def check_bank(inv: Invoice, vendor: Optional[Vendor]) -> list[Finding]:
+def check_bank(inv: Invoice, vendor: Vendor | None) -> list[Finding]:
     if vendor is None:
         return []
     if not inv.remit_to.same_destination(vendor.bank_account):
@@ -177,7 +184,7 @@ def check_bank(inv: Invoice, vendor: Optional[Vendor]) -> list[Finding]:
     return []
 
 
-def check_instructions(document_text: Optional[str]) -> list[Finding]:
+def check_instructions(document_text: str | None) -> list[Finding]:
     """Invoices are written for people. Text aimed at an AI or automated system is a red flag
     (prompt injection), whether or not the extractor was fooled by it."""
     if not document_text:
@@ -212,10 +219,10 @@ class InvoiceLedger:
     entries: list[_Seen] = field(default_factory=list)
 
     @staticmethod
-    def vendor_key(inv: Invoice, vendor: Optional[Vendor]) -> str:
+    def vendor_key(inv: Invoice, vendor: Vendor | None) -> str:
         return vendor.vendor_id if vendor else f"name:{norm_name(inv.vendor_name)}"
 
-    def check(self, inv: Invoice, vendor: Optional[Vendor]) -> list[Finding]:
+    def check(self, inv: Invoice, vendor: Vendor | None) -> list[Finding]:
         key, number = self.vendor_key(inv, vendor), norm_id(inv.invoice_number)
         out: list[Finding] = []
         for e in self.entries:
@@ -231,7 +238,7 @@ class InvoiceLedger:
                                            f"days as {e.ref} under a different number"))
         return out
 
-    def check_billing(self, inv: Invoice, vendor: Optional[Vendor], po: Optional[PurchaseOrder],
+    def check_billing(self, inv: Invoice, vendor: Vendor | None, po: PurchaseOrder | None,
                       thresholds: dict[str, Decimal]) -> list[Finding]:
         """Cumulative billing against one PO: over-billing and threshold splitting."""
         if not inv.po_number:
@@ -259,7 +266,7 @@ class InvoiceLedger:
                                            f"threshold {limit} but total {combined}"))
         return out
 
-    def add(self, inv: Invoice, vendor: Optional[Vendor], ref: str) -> None:
+    def add(self, inv: Invoice, vendor: Vendor | None, ref: str) -> None:
         self.entries.append(_Seen(self.vendor_key(inv, vendor), norm_id(inv.invoice_number),
                                   inv.total, inv.invoice_date, ref, norm_id(inv.po_number), inv.subtotal))
 
@@ -275,7 +282,7 @@ class InvoiceChecker:
         self.thresholds = approval_thresholds or dict(APPROVAL_THRESHOLDS)
 
     def check(self, inv: Invoice, ref: str = "", record: bool = True,
-              document_text: Optional[str] = None) -> CheckReport:
+              document_text: str | None = None) -> CheckReport:
         match, findings = self.master.resolve(inv)
         vendor = match.vendor
         findings += self.ledger.check(inv, vendor)

@@ -16,7 +16,7 @@ import json
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -46,7 +46,7 @@ class Payment(BaseModel):
     late: bool
     destination: BankAccount
     status: Literal["scheduled", "awaiting_approval", "cancelled"]
-    approved_by: Optional[str] = None
+    approved_by: str | None = None
     created_at: str
     source_ref: str = ""
 

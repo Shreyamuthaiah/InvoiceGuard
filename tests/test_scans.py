@@ -117,7 +117,8 @@ def test_validation_and_key_fields(data):
     inv = pick(ds, scanned=False).invoice
     assert validation_issues(ExtractionResult(invoice=inv, raw=None, model="m", provider="p")) == []
     blank = inv.model_copy(update={"vendor_tax_id": " "})
-    assert "vendor tax ID is empty" in validation_issues(ExtractionResult(invoice=blank, raw=None, model="m", provider="p"))
+    issues = validation_issues(ExtractionResult(invoice=blank, raw=None, model="m", provider="p"))
+    assert "vendor tax ID is empty" in issues
     assert key_fields(inv) == key_fields(inv.model_copy(update={"vendor_address": blank.bill_to_address}))
 
 
@@ -145,7 +146,8 @@ def test_gemini_image_request_shape(data):
         return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}, "finish_reason": "stop"}],
                                          "usage": {"prompt_tokens": 1, "completion_tokens": 1}})
 
-    ex = OpenAICompatExtractor("gemini", api_key="k", rpm=0, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    ex = OpenAICompatExtractor("gemini", api_key="k", rpm=0, client=client)
     image = (out / gt.render.file).read_bytes()
     ex.extract_image(image, hint="- total does not match")
     parts = seen[0]["messages"][1]["content"]

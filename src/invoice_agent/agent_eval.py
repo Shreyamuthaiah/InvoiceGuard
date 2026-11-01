@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> None:
     a = p.parse_args(argv)
     run_dir = Path(a.run)
     if a.report_only:
-        records = [json.loads(l) for l in (run_dir / "reviews.jsonl").read_text(encoding="utf-8").splitlines()]
+        records = [json.loads(line) for line in (run_dir / "reviews.jsonl").read_text(encoding="utf-8").splitlines()]
         records = list({r["doc_id"]: r for r in records}.values())
     else:
         from invoice_agent.extract.openai_compat import OpenAICompatExtractor

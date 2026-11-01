@@ -17,7 +17,13 @@ from pathlib import Path
 
 from invoice_agent.checks import InvoiceChecker
 from invoice_agent.schema import (
-    Anomaly, Decision, GroundTruth, Invoice, PurchaseOrder, Vendor, expected_decision,
+    Anomaly,
+    Decision,
+    GroundTruth,
+    Invoice,
+    PurchaseOrder,
+    Vendor,
+    expected_decision,
 )
 
 
@@ -58,7 +64,9 @@ def load_texts(data: Path, cases: list[GroundTruth]) -> dict[str, str]:
 def evaluate(vendors, pos, cases, predictions: dict[str, Invoice] | None = None,
              texts: dict[str, str] | None = None, uncertain: set[str] | None = None) -> dict:
     checker = InvoiceChecker(vendors, pos)
-    tp, fp, fn = Counter(), Counter(), Counter()
+    tp: Counter[Anomaly] = Counter()
+    fp: Counter[Anomaly] = Counter()
+    fn: Counter[Anomaly] = Counter()
     confusion: Counter = Counter()
     mistakes = []
     n = 0

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import io
 import json
 import re
@@ -20,12 +21,19 @@ import threading
 from datetime import date, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
 from invoice_agent.checks_eval import load
-from invoice_agent.pipeline import InvoicePipeline, ProcessResult, labels_extractor, live_extractor, predictions_extractor
+from invoice_agent.pipeline import (
+    ExtractFn,
+    InvoicePipeline,
+    ProcessResult,
+    labels_extractor,
+    live_extractor,
+    predictions_extractor,
+)
 from invoice_agent.schema import GroundTruth
+
 
 def project_root() -> Path:
     """The repo folder (holds pyproject.toml), found from the current directory upwards, then
@@ -45,7 +53,7 @@ CACHED_RUNS = {  # dataset dir name -> eval runs to reuse, first existing wins
 }
 
 
-def preview(path: Path) -> Optional[str]:
+def preview(path: Path) -> str | None:
     """Small PNG/JPEG data URL of page 1."""
     if not path.exists():
         return None
@@ -67,20 +75,20 @@ class Dataset:
         self.path = path
         self.vendors, self.pos, cases = load(path)
         self.cases: dict[str, GroundTruth] = {gt.doc_id: gt for gt in cases}
-        self.predictions: Optional[Path] = next(
+        self.predictions: Path | None = next(
             (ROOT / r / "predictions.jsonl" for r in CACHED_RUNS.get(path.name, [])
              if (ROOT / r / "predictions.jsonl").exists()), None)
 
 
 class Session:
-    def __init__(self, datasets: list[Path], out_root: Path, provider: str, model: Optional[str],
+    def __init__(self, datasets: list[Path], out_root: Path, provider: str, model: str | None,
                  today: date, explain_llm=None) -> None:
         self.datasets = {p.name: Dataset(p) for p in datasets if (p / "manifest.jsonl").exists()}
         if not self.datasets:
             raise SystemExit("no datasets found; run `python -m invoice_agent.synth` first")
         self.out_root, self.provider, self.model, self.today = out_root, provider, model, today
         self.explain_llm = explain_llm
-        self._live = None
+        self._live: ExtractFn | None = None
         self.reset()
 
     def reset(self) -> None:
@@ -129,7 +137,7 @@ class Session:
         pipe.extract = self._extractor(self.datasets[name], "live")
         return self._record(pipe.process(doc_id, path), path, "live", None, filename)
 
-    def _record(self, r: ProcessResult, path: Path, source: str, gt: Optional[GroundTruth],
+    def _record(self, r: ProcessResult, path: Path, source: str, gt: GroundTruth | None,
                 filename: str = "") -> dict:
         rec = {
             "doc_id": r.doc_id, "filename": filename, "source": source, "preview": preview(path),
@@ -328,17 +336,15 @@ def main(argv: list[str] | None = None) -> None:
     try:
         server = HTTPServer(("127.0.0.1", a.port), make_handler(session))
     except OSError as e:
-        raise SystemExit(f"Port {a.port} is busy ({e}). Try:  python -m invoice_agent.ui --port 8800")
+        raise SystemExit(f"Port {a.port} is busy ({e}). Try:  python -m invoice_agent.ui --port 8800") from e
     url = f"http://127.0.0.1:{a.port}"
     print(f"Datasets: {', '.join(str(d) for d in found)}")
     print(f"Invoice Agent UI running at {url}  (keep this window open; Ctrl+C to stop)", flush=True)
     if not a.no_browser:
         import webbrowser
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()  # server is already bound
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         server.serve_forever()
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":

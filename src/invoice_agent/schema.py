@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from enum import Enum
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -39,12 +39,12 @@ class Address(BaseModel):
 class BankAccount(BaseModel):
     bank_name: str
     account_name: str
-    account_number: Optional[str] = None  # US accounts
-    routing_number: Optional[str] = None  # US ABA routing
-    iban: Optional[str] = None  # EU/UK accounts
-    swift: Optional[str] = None
+    account_number: str | None = None  # US accounts
+    routing_number: str | None = None  # US ABA routing
+    iban: str | None = None  # EU/UK accounts
+    swift: str | None = None
 
-    def same_destination(self, other: "BankAccount") -> bool:
+    def same_destination(self, other: BankAccount) -> bool:
         """True if both describe the same destination account (ignores display names)."""
         return (self.account_number, self.routing_number, self.iban) == (
             other.account_number,
@@ -86,7 +86,7 @@ class Invoice(BaseModel):
     invoice_number: str
     invoice_date: date
     due_date: date
-    po_number: Optional[str] = None
+    po_number: str | None = None
 
     vendor_name: str
     vendor_address: Address
@@ -172,16 +172,16 @@ class RenderInfo(BaseModel):
     format: Literal["pdf", "jpg"]
     scanned: bool
     degradations: dict[str, float] = Field(default_factory=dict)
-    style: Optional[Style] = None  # None = the template's fixed v1 look
+    style: Style | None = None  # None = the template's fixed v1 look
     injections: list[Injection] = Field(default_factory=list)
 
 
 class GroundTruth(BaseModel):
     doc_id: str
     invoice: Invoice
-    vendor_id: Optional[str] = Field(description="True vendor-master id; None if unknown vendor.")
+    vendor_id: str | None = Field(description="True vendor-master id; None if unknown vendor.")
     anomalies: list[Anomaly]
     expected_decision: Decision
-    duplicate_of: Optional[str] = None
+    duplicate_of: str | None = None
     render: RenderInfo
     notes: list[str] = Field(default_factory=list)

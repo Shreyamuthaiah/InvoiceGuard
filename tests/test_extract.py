@@ -1,7 +1,9 @@
+import json as _json
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 from invoice_agent.evaluate import compare, run_predictions, score
@@ -9,12 +11,18 @@ from invoice_agent.extract import OllamaExtractor, pdf_to_text, to_invoice
 from invoice_agent.extract.llm import ClaudeExtractor
 from invoice_agent.extract.models import ExtractedAddress, ExtractedBank, ExtractedInvoice, ExtractedLineItem
 from invoice_agent.extract.normalize import (
-    NormalizationError, date_candidates, parse_money, parse_number, parse_rate, resolve_dates,
+    NormalizationError,
+    date_candidates,
+    parse_money,
+    parse_number,
+    parse_rate,
+    resolve_dates,
 )
+from invoice_agent.extract.ollama import PROMPT, SCHEMA
+from invoice_agent.extract.openai_compat import OpenAICompatExtractor
 from invoice_agent.schema import GroundTruth
 from invoice_agent.synth import DatasetGenerator, write_dataset
 from invoice_agent.synth.render import fmt_date, fmt_money, fmt_qty, fmt_rate, fmt_unit, resolve_style
-
 
 # ---------- number / date normalisation ----------
 
@@ -176,11 +184,8 @@ def test_eval_loop_end_to_end_and_resume(small_dataset, tmp_path):
 
 # ---------- Ollama backend (mocked HTTP; never touches a real server) ----------
 
-import json as _json
 
-import httpx
 
-from invoice_agent.extract.ollama import SCHEMA, PROMPT
 
 
 def _ollama_client(answer: dict[str, ExtractedInvoice], seen: list, done_reason: str = "stop", content=None):
@@ -232,7 +237,6 @@ def test_ollama_unreachable():
 
 # ---------- free hosted APIs (OpenAI-compatible; mocked HTTP) ----------
 
-from invoice_agent.extract.openai_compat import OpenAICompatExtractor
 
 
 def _compat_client(responses: list, seen: list):

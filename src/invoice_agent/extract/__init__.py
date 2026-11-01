@@ -10,7 +10,6 @@ from invoice_agent.extract.normalize import to_invoice
 from invoice_agent.extract.ollama import OllamaExtractor
 from invoice_agent.extract.pdf_text import has_text_layer, pdf_to_text
 
-
 PROVIDERS = ["gemini", "groq", "ollama", "claude"]
 
 

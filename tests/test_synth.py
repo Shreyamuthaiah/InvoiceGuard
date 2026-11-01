@@ -27,7 +27,7 @@ def _digits(s: str) -> str:
 def test_files_and_labels_exist(dataset):
     ds, out, stats = dataset
     assert stats["documents"] == N
-    manifest = [json.loads(l) for l in (out / "manifest.jsonl").read_text().splitlines()]
+    manifest = [json.loads(line) for line in (out / "manifest.jsonl").read_text().splitlines()]
     assert len(manifest) == N
     for row in manifest:
         assert (out / row["file"]).exists()

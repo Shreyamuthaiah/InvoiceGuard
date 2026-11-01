@@ -97,7 +97,8 @@ def test_tools_answer_from_master_data(ds):
     assert len(sim["matches"]) == 3 and all("tax_id" in m for m in sim["matches"])
     assert agent._tool("get_purchase_order", {"po_number": "PO-0"}, gt.invoice, report) == {"error": "PO not found"}
     po = ds.purchase_orders[0]
-    assert agent._tool("get_purchase_order", {"po_number": po.po_number.lower()}, gt.invoice, report)["total"] == f"{po.total:.2f}"
+    found = agent._tool("get_purchase_order", {"po_number": po.po_number.lower()}, gt.invoice, report)
+    assert found["total"] == f"{po.total:.2f}"
     assert agent._tool("compare_bank_details", {}, gt.invoice, report)["vendor_master"] is None
 
 
@@ -115,6 +116,7 @@ def test_scoring_and_grounding():
 
 def test_pipeline_explains_only_held_and_rejected(ds, tmp_path):
     from datetime import date
+
     from invoice_agent.pipeline import InvoicePipeline
 
     class AlwaysSubmits(ScriptedLLM):
@@ -132,5 +134,5 @@ def test_pipeline_explains_only_held_and_rejected(ds, tmp_path):
     assert not_approved and len(llm.payloads) == len(not_approved)
     assert all(r.explanation and r.explanation["summary"] for r in not_approved)
     assert all(r.explanation is None for r in results if r.decision == Decision.APPROVE)
-    audit = [json.loads(l) for l in (tmp_path / "audit.jsonl").read_text().splitlines()]
+    audit = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
     assert sum(1 for a in audit if a["explanation"]) == len(not_approved)

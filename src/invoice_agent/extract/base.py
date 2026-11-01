@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, Protocol
+from typing import Protocol
 
 from pydantic import ValidationError
 
@@ -57,22 +57,22 @@ def image_message(hint: str | None = None) -> str:
 
 @dataclass
 class ExtractionResult:
-    invoice: Optional[Invoice]
-    raw: Optional[ExtractedInvoice]
+    invoice: Invoice | None
+    raw: ExtractedInvoice | None
     model: str
     provider: str
     warnings: list[str] = field(default_factory=list)
-    error: Optional[str] = None
+    error: str | None = None
     input_tokens: int = 0
     output_tokens: int = 0
     latency_s: float = 0.0
-    request_id: Optional[str] = None
+    request_id: str | None = None
     reads: int = 1  # 2 when the self-check asked for a second read
     input_mode: str = "text"  # "text" (PDF text layer) or "image" (scan / vision)
     uncertain_fields: list[str] = field(default_factory=list)  # reads disagreed -> hold for a human
 
     @property
-    def cost_usd(self) -> Optional[float]:
+    def cost_usd(self) -> float | None:
         if self.provider in FREE_PROVIDERS:
             return 0.0
         price = PRICING.get(self.model)
@@ -84,7 +84,10 @@ class ExtractionResult:
 class Extractor(Protocol):
     model: str
 
-    def extract_text(self, document_text: str) -> ExtractionResult: ...
+    def extract_text(self, document_text: str, hint: str | None = None) -> ExtractionResult: ...
+
+    def extract_image(self, image: bytes, media_type: str = "image/jpeg",
+                      hint: str | None = None) -> ExtractionResult: ...
 
 
 def finish(result: ExtractionResult, raw: ExtractedInvoice | str | None) -> ExtractionResult:

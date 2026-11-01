@@ -12,7 +12,6 @@ import io
 import random
 from datetime import date
 from decimal import Decimal
-from typing import Optional
 
 import pymupdf
 from PIL import Image, ImageFilter
@@ -136,7 +135,7 @@ def make_style(rng: random.Random, template: str, currency: str) -> Style:
     )
 
 
-def resolve_style(template: str, currency: str, style: Optional[Style]) -> Style:
+def resolve_style(template: str, currency: str, style: Style | None) -> Style:
     return style or default_style(template, currency)
 
 
@@ -279,10 +278,12 @@ def _classic(c: canvas.Canvas, inv: Invoice, st: Style) -> None:
         y -= 12; c.drawString(50, y, line)
     y = _table(p, 50, W - 50, H - 290, 18, shaded=False) - 26
     totals_top = y
-    for k, v, bold in [(p.lab("subtotal"), inv.subtotal, False), (p.tax_label(), inv.tax_amount, False),
-                       (p.lab("total"), inv.total, True)]:
+    totals: list[tuple[str, Decimal, bool]] = [(p.lab("subtotal"), inv.subtotal, False),
+                                               (p.tax_label(), inv.tax_amount, False),
+                                               (p.lab("total"), inv.total, True)]
+    for label, amount, bold in totals:
         c.setFont(p.bold if bold else p.reg, 10 if bold else 9)
-        c.drawRightString(460, y, k); c.drawRightString(W - 50, y, p.money(v)); y -= 15
+        c.drawRightString(460, y, label); c.drawRightString(W - 50, y, p.money(amount)); y -= 15
     _bank_block(p, 50, totals_top if st.bank_beside_totals else 150, p.bold)
     c.setFont(p.ital, 8)
     c.drawCentredString(W / 2, 40, f"Thank you for your business. Questions? {inv.vendor_email}")
@@ -351,8 +352,9 @@ def _minimal(c: canvas.Canvas, inv: Invoice, st: Style) -> None:
         c.drawRightString(W - 60, y, p.money(li.amount))
         y -= 12
     c.drawString(60, y, "-" * 82); y -= 14
-    for k, v in [(p.lab("subtotal"), inv.subtotal), (p.tax_label(), inv.tax_amount)]:
-        c.drawRightString(440, y, k); c.drawRightString(W - 60, y, p.money(v)); y -= 12
+    net_rows: list[tuple[str, Decimal]] = [(p.lab("subtotal"), inv.subtotal), (p.tax_label(), inv.tax_amount)]
+    for label, amount in net_rows:
+        c.drawRightString(440, y, label); c.drawRightString(W - 60, y, p.money(amount)); y -= 12
     c.setFont(p.bold, 10)
     c.drawRightString(440, y - 2, p.lab("total")); c.drawRightString(W - 60, y - 2, p.money(inv.total))
     c.setFont(p.reg, 9)
@@ -374,8 +376,8 @@ def _printable(inv: Invoice) -> Invoice:
                                   "bill_to_address": fix(inv.bill_to_address)})
 
 
-def render_pdf_bytes(inv: Invoice, template: str, style: Optional[Style] = None,
-                     injections: Optional[list[Injection]] = None) -> bytes:
+def render_pdf_bytes(inv: Invoice, template: str, style: Style | None = None,
+                     injections: list[Injection] | None = None) -> bytes:
     st = resolve_style(template, inv.currency, style)
     inv = _printable(inv)
     buf = io.BytesIO()
@@ -405,7 +407,7 @@ def degrade_to_scan(pdf_bytes: bytes, rng: random.Random) -> tuple[bytes, dict[s
     img = Image.blend(img, noise, params["noise_alpha"])
     if params["blur_radius"] > 0:
         img = img.filter(ImageFilter.GaussianBlur(params["blur_radius"]))
-    img = img.rotate(params["rotation_deg"], resample=Image.BICUBIC, expand=True, fillcolor=255)
+    img = img.rotate(params["rotation_deg"], resample=Image.Resampling.BICUBIC, expand=True, fillcolor=255)
     out = io.BytesIO()
     img.save(out, format="JPEG", quality=int(params["jpeg_quality"]))
     return out.getvalue(), params

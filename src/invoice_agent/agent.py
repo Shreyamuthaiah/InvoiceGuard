@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -53,7 +53,7 @@ master, ask procurement to amend the PO, compare with the earlier invoice).
 - Keep it short and factual. When done, call submit_review exactly once."""
 
 
-def _mask(value: Optional[str]) -> Optional[str]:
+def _mask(value: str | None) -> str | None:
     if not value:
         return value
     v = value.replace(" ", "")
@@ -92,8 +92,8 @@ TOOLS = [
 class AgentReview:
     doc_id: str
     decision: str
-    review: Optional[SubmittedReview] = None
-    error: Optional[str] = None
+    review: SubmittedReview | None = None
+    error: str | None = None
     steps: int = 0
     tool_calls: list[str] = field(default_factory=list)
     context: str = ""  # everything the agent was shown (for grounding checks)

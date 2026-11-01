@@ -112,7 +112,8 @@ class OpenAICompatExtractor:
         self.model = model or self.preset.default_model
         key = api_key or read_key(self.preset.key_env)
         if not key:
-            raise RuntimeError(f"set {self.preset.key_env} (environment variable or a line in .env) to use provider {provider!r}")
+            raise RuntimeError(f"set {self.preset.key_env} (environment variable or a line in .env) "
+                               f"to use provider {provider!r}")
         self.client = client or httpx.Client(timeout=timeout_s)
         self._headers = {"Authorization": f"Bearer {key}"}
         self.throttle = _Throttle(self.preset.rpm if rpm is None else rpm)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -93,10 +94,8 @@ def date_candidates(text: str) -> dict[str, date]:
         y += 2000
     out = {}
     for conv, (mo, d) in {"mdy": (a, b), "dmy": (b, a)}.items():
-        try:
+        with contextlib.suppress(ValueError):
             out[conv] = date(y, mo, d)
-        except ValueError:
-            pass
     if not out:
         raise NormalizationError(f"impossible date {text!r}")
     return out
@@ -113,9 +112,10 @@ def resolve_dates(
     warnings: list[str] = []
     inv_c = date_candidates(invoice_date)
     due_c = date_candidates(due_date) if due_date else {}
-    convs = [c for c in ("text", "mdy", "dmy") if c in inv_c and (not due_c or c in due_c or "text" in due_c)]
+    convs: list[str] = [c for c in ("text", "mdy", "dmy")
+                        if c in inv_c and (not due_c or c in due_c or "text" in due_c)]
     if not convs:
-        convs = list(inv_c)
+        convs = [str(k) for k in inv_c]
 
     def pick(conv: str) -> tuple[date, date | None]:
         due = None
@@ -126,7 +126,10 @@ def resolve_dates(
     if len(convs) == 1:
         return (*pick(convs[0]), warnings)
     if terms_days is not None and due_c:
-        matching = [c for c in convs if (pick(c)[1] - pick(c)[0]).days == terms_days]
+        def gap(conv: str) -> int | None:
+            issued, due = pick(conv)
+            return (due - issued).days if due else None
+        matching = [c for c in convs if gap(c) == terms_days]
         if len(matching) == 1:
             return (*pick(matching[0]), warnings)
     us = (country or "").strip().lower() in {"united states", "usa", "us", "u.s.", "united states of america"}
