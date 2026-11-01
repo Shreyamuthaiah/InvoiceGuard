@@ -109,8 +109,6 @@ class Session:
         if gt is None:
             raise ValueError("unknown document")
         path = ds.path / gt.render.file
-        if source == "live" and gt.render.scanned:
-            raise ValueError("live extraction of scans needs the vision path (week 3); use labels")
         pipe = self.pipes[dataset]
         pipe.extract = self._extractor(ds, source)
         return self._record(pipe.process(doc_id, path), path, source, gt)

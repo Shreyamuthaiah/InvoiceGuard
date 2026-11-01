@@ -27,8 +27,8 @@ from invoice_agent.checks import CheckReport, InvoiceChecker
 from invoice_agent.payments import MockPaymentsAPI, Payment, PaymentError, PaymentPolicy
 from invoice_agent.schema import Decision, Invoice, PurchaseOrder, Vendor
 
-# (doc_id, path) -> (invoice or None, error or None, extractor label)
-ExtractFn = Callable[[str, Path], tuple[Optional[Invoice], Optional[str], str]]
+# (doc_id, path) -> (invoice or None, error or None, extractor label[, uncertain fields])
+ExtractFn = Callable[[str, Path], tuple]
 
 
 @dataclass
@@ -69,7 +69,9 @@ class InvoicePipeline:
         self.queue_path = out_dir / "review_queue.jsonl"
 
     def process(self, doc_id: str, path: Path) -> ProcessResult:
-        inv, error, extractor = self.extract(doc_id, path)
+        out = self.extract(doc_id, path)
+        inv, error, extractor = out[:3]
+        uncertain = list(out[3]) if len(out) > 3 else []
         if inv is None:
             result = ProcessResult(doc_id, Decision.HOLD, [f"extraction failed: {error}; enter manually"],
                                    extraction_error=error)
@@ -79,7 +81,11 @@ class InvoicePipeline:
             result = ProcessResult(doc_id, report.decision, reasons, invoice=inv, report=report,
                                    warnings=[f.message for f in report.findings if f.severity == "warning"
                                              and not f.anomaly])
-            if report.decision == Decision.APPROVE:
+            if uncertain and result.decision == Decision.APPROVE:
+                # Two reads of the document disagreed: a person checks the values before paying.
+                result.decision = Decision.HOLD
+                result.reasons.append("extraction uncertain: two reads disagreed on " + ", ".join(uncertain))
+            if result.decision == Decision.APPROVE:
                 try:
                     result.payment, result.payment_created = self.payments.schedule(
                         inv, report.vendor_match.vendor, report.decision, self.today, source_ref=doc_id)
@@ -172,18 +178,20 @@ def predictions_extractor(path: Path) -> ExtractFn:
             return None, "no cached prediction", label
         if not rec.get("invoice"):
             return None, rec.get("error") or "no output", label
-        return Invoice.model_validate(rec["invoice"]), None, f"{label} (cached)"
+        return (Invoice.model_validate(rec["invoice"]), None, f"{label} (cached)",
+                rec.get("uncertain_fields") or [])
     return fn
 
 
 def live_extractor(provider: str, model: Optional[str]) -> ExtractFn:
-    from invoice_agent.extract import make_extractor, pdf_to_text
+    from invoice_agent.extract import make_extractor
+    from invoice_agent.extract.document import extract_document
 
     extractor = make_extractor(provider, model)
 
     def fn(doc_id: str, path: Path):
-        res = extractor.extract_text(pdf_to_text(path))
-        return res.invoice, res.error, f"{provider}:{extractor.model}"
+        res = extract_document(extractor, path)  # text layer or vision, with the self-check
+        return res.invoice, res.error, f"{provider}:{extractor.model} ({res.input_mode})", res.uncertain_fields
     return fn
 
 
@@ -200,12 +208,14 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--model", default=None)
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--today", default=None, help="YYYY-MM-DD; default: today")
+    p.add_argument("--include-scans", action="store_true", help="also process scanned documents (vision)")
     a = p.parse_args(argv)
 
     data, out = Path(a.data), Path(a.out)
     today = date.fromisoformat(a.today) if a.today else date.today()
     vendors, pos, cases = load(data)
-    docs = [(gt.doc_id, data / gt.render.file) for gt in cases if not gt.render.scanned]  # scans: week 3
+    docs = [(gt.doc_id, data / gt.render.file) for gt in cases
+            if a.include_scans or not gt.render.scanned]
     if a.limit:
         docs = docs[: a.limit]
     if a.from_labels:

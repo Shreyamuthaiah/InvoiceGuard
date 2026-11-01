@@ -30,13 +30,21 @@ def load(data: Path) -> tuple[list[Vendor], list[PurchaseOrder], list[GroundTrut
     return vendors, pos, cases
 
 
-def load_predictions(path: Path) -> dict[str, Invoice]:
+def load_predictions(*paths: Path) -> tuple[dict[str, Invoice], set[str]]:
+    """Merge one or more predictions.jsonl files (e.g. a PDF run and a scans run).
+    Returns the invoices and the doc_ids whose two reads disagreed (held as uncertain)."""
     out: dict[str, Invoice] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        rec = json.loads(line)
-        if rec.get("invoice"):
-            out[rec["doc_id"]] = Invoice.model_validate(rec["invoice"])
-    return out
+    uncertain: set[str] = set()
+    for path in paths:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            rec = json.loads(line)
+            if rec.get("invoice"):
+                out[rec["doc_id"]] = Invoice.model_validate(rec["invoice"])
+                if rec.get("uncertain_fields"):
+                    uncertain.add(rec["doc_id"])
+                else:
+                    uncertain.discard(rec["doc_id"])
+    return out, uncertain
 
 
 def load_texts(data: Path, cases: list[GroundTruth]) -> dict[str, str]:
@@ -48,7 +56,7 @@ def load_texts(data: Path, cases: list[GroundTruth]) -> dict[str, str]:
 
 
 def evaluate(vendors, pos, cases, predictions: dict[str, Invoice] | None = None,
-             texts: dict[str, str] | None = None) -> dict:
+             texts: dict[str, str] | None = None, uncertain: set[str] | None = None) -> dict:
     checker = InvoiceChecker(vendors, pos)
     tp, fp, fn = Counter(), Counter(), Counter()
     confusion: Counter = Counter()
@@ -63,6 +71,9 @@ def evaluate(vendors, pos, cases, predictions: dict[str, Invoice] | None = None,
             continue
         inv = predictions[gt.doc_id] if predictions is not None else gt.invoice
         report = checker.check(inv, ref=gt.doc_id, document_text=(texts or {}).get(gt.doc_id))
+        decision = report.decision
+        if uncertain and gt.doc_id in uncertain and decision == Decision.APPROVE:
+            decision = Decision.HOLD  # reads disagreed: the pipeline holds it for a person
         n += 1
         want_list = list(gt.anomalies)
         if Anomaly.DUPLICATE in want_list and gt.duplicate_of not in processed \
@@ -78,10 +89,10 @@ def evaluate(vendors, pos, cases, predictions: dict[str, Invoice] | None = None,
             tp[a] += a in got and a in want
             fp[a] += a in got and a not in want
             fn[a] += a not in got and a in want
-        confusion[(expected.value, report.decision.value)] += 1
-        if got != want or report.decision != expected:
+        confusion[(expected.value, decision.value)] += 1
+        if got != want or decision != expected:
             mistakes.append({"doc_id": gt.doc_id, "expected": sorted(a.value for a in want),
-                             "got": sorted(a.value for a in got), "decision": report.decision.value,
+                             "got": sorted(a.value for a in got), "decision": decision.value,
                              "expected_decision": expected.value,
                              "findings": [f.message for f in report.findings if f.severity != "info"]})
     per_anomaly = {}
@@ -133,15 +144,17 @@ def render(summary: dict, title: str) -> str:
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data", default="data/synthetic")
-    p.add_argument("--predictions", default=None, help="predictions.jsonl from an extraction run")
+    p.add_argument("--predictions", nargs="+", default=None,
+                   help="predictions.jsonl from one or more extraction runs (merged)")
     p.add_argument("--out", default=None, help="write report markdown here")
     p.add_argument("--no-text", action="store_true", help="skip reading PDF text (no instruction check)")
     a = p.parse_args(argv)
     vendors, pos, cases = load(Path(a.data))
-    preds = load_predictions(Path(a.predictions)) if a.predictions else None
+    preds, uncertain = load_predictions(*map(Path, a.predictions)) if a.predictions else (None, set())
     texts = None if a.no_text else load_texts(Path(a.data), cases)
-    summary = evaluate(vendors, pos, cases, preds, texts)
-    title = f"extracted ({Path(a.predictions).parent.name})" if a.predictions else "ground-truth invoices"
+    summary = evaluate(vendors, pos, cases, preds, texts, uncertain)
+    title = (f"extracted ({' + '.join(Path(x).parent.name for x in a.predictions)})" if a.predictions
+             else "ground-truth invoices")
     report = render(summary, title)
     if a.out:
         Path(a.out).write_text(report, encoding="utf-8")

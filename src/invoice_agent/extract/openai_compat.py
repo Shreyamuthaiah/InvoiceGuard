@@ -7,6 +7,7 @@ API keys come from environment variables and are never logged or written to disk
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import threading
@@ -16,7 +17,7 @@ from pathlib import Path
 
 import httpx
 
-from invoice_agent.extract.base import ExtractionResult, finish, user_message
+from invoice_agent.extract.base import ExtractionResult, finish, image_message, user_message
 from invoice_agent.extract.jsonschema import PROMPT, SCHEMA, close_objects
 
 
@@ -113,15 +114,18 @@ class OpenAICompatExtractor:
         self.max_retries = max_retries
         self._sleep = sleep
 
-    def _payload(self, document_text: str) -> dict:
+    def _payload(self, document_text: str | None = None, *, content: list | str | None = None,
+                 hint: str | None = None) -> dict:
         schema = {"name": "invoice", "schema": close_objects(SCHEMA) if self.preset.strict else SCHEMA}
         if self.preset.strict:
             schema["strict"] = True
+        if content is None:
+            content = user_message(document_text or "", hint)
         return {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": PROMPT},
-                {"role": "user", "content": user_message(document_text)},
+                {"role": "user", "content": content},
             ],
             "response_format": {"type": "json_schema", "json_schema": schema},
             "temperature": 0,
@@ -141,11 +145,21 @@ class OpenAICompatExtractor:
             self._sleep(delay)
         return resp  # pragma: no cover
 
-    def extract_text(self, document_text: str) -> ExtractionResult:
+    def extract_text(self, document_text: str, hint: str | None = None) -> ExtractionResult:
+        return self._run(self._payload(document_text, hint=hint))
+
+    def extract_image(self, image: bytes, media_type: str = "image/jpeg", hint: str | None = None) -> ExtractionResult:
+        """Vision path for scans: the page image goes in as a base64 data URL."""
+        data_url = f"data:{media_type};base64," + base64.b64encode(image).decode()
+        content = [{"type": "text", "text": image_message(hint)},
+                   {"type": "image_url", "image_url": {"url": data_url}}]
+        return self._run(self._payload(content=content))
+
+    def _run(self, payload: dict) -> ExtractionResult:
         result = ExtractionResult(invoice=None, raw=None, model=self.model, provider=self.provider)
         start = time.perf_counter()
         try:
-            resp = self._post(self._payload(document_text))
+            resp = self._post(payload)
         except httpx.TimeoutException:
             result.error = "request timed out"
             return result

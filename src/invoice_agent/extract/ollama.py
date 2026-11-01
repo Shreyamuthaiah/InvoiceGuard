@@ -7,12 +7,13 @@ in the prompt; otherwise the model never sees what each field means.
 
 from __future__ import annotations
 
+import base64
 import json
 import time
 
 import httpx
 
-from invoice_agent.extract.base import ExtractionResult, finish, user_message
+from invoice_agent.extract.base import ExtractionResult, finish, image_message, user_message
 from invoice_agent.extract.jsonschema import PROMPT, SCHEMA  # noqa: F401 (re-exported)
 
 DEFAULT_MODEL = "qwen2.5:7b"
@@ -28,16 +29,21 @@ class OllamaExtractor:
         self.host = host.rstrip("/")
         self.client = client or httpx.Client(timeout=timeout_s)
 
-    def extract_text(self, document_text: str) -> ExtractionResult:
+    def extract_text(self, document_text: str, hint: str | None = None) -> ExtractionResult:
+        return self._run({"role": "user", "content": user_message(document_text, hint)})
+
+    def extract_image(self, image: bytes, media_type: str = "image/jpeg", hint: str | None = None) -> ExtractionResult:
+        """Needs a vision model (e.g. qwen2.5vl, llava); text-only models will fail or guess."""
+        return self._run({"role": "user", "content": image_message(hint),
+                          "images": [base64.b64encode(image).decode()]})
+
+    def _run(self, user: dict) -> ExtractionResult:
         result = ExtractionResult(invoice=None, raw=None, model=self.model, provider=self.provider)
         start = time.perf_counter()
         try:
             resp = self.client.post(f"{self.host}/api/chat", json={
                 "model": self.model,
-                "messages": [
-                    {"role": "system", "content": PROMPT},
-                    {"role": "user", "content": user_message(document_text)},
-                ],
+                "messages": [{"role": "system", "content": PROMPT}, user],
                 "format": SCHEMA,
                 "stream": False,
                 "options": {"temperature": 0, "num_ctx": 8192},

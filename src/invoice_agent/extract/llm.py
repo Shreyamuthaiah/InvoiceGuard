@@ -1,10 +1,11 @@
-"""Claude backend (optional; needs ANTHROPIC_API_KEY). The default backend is Ollama."""
+"""Claude backend (optional; needs ANTHROPIC_API_KEY). The default backend is Gemini (free tier)."""
 
 from __future__ import annotations
 
+import base64
 import time
 
-from invoice_agent.extract.base import SYSTEM_PROMPT, ExtractionResult, finish, user_message
+from invoice_agent.extract.base import SYSTEM_PROMPT, ExtractionResult, finish, image_message, user_message
 from invoice_agent.extract.models import ExtractedInvoice
 
 DEFAULT_MODEL = "claude-opus-5-5"
@@ -28,7 +29,17 @@ class ClaudeExtractor:
         self.model = model
         self.effort = effort
 
-    def extract_text(self, document_text: str) -> ExtractionResult:
+    def extract_text(self, document_text: str, hint: str | None = None) -> ExtractionResult:
+        return self._run(user_message(document_text, hint))
+
+    def extract_image(self, image: bytes, media_type: str = "image/jpeg", hint: str | None = None) -> ExtractionResult:
+        data = base64.standard_b64encode(image).decode("utf-8")
+        return self._run([
+            {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": data}},
+            {"type": "text", "text": image_message(hint)},
+        ])
+
+    def _run(self, content) -> ExtractionResult:
         anthropic = self._anthropic
         result = ExtractionResult(invoice=None, raw=None, model=self.model, provider=self.provider)
         start = time.perf_counter()
@@ -37,7 +48,7 @@ class ClaudeExtractor:
                 model=self.model,
                 max_tokens=16000,
                 system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_message(document_text)}],
+                messages=[{"role": "user", "content": content}],
                 output_format=ExtractedInvoice,
                 output_config={"effort": self.effort},
                 # Re-run on Anthropic's recommended model if a safety classifier declines.

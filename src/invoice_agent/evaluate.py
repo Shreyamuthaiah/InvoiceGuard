@@ -65,21 +65,21 @@ def compare(pred: Invoice, gold: Invoice) -> dict[str, bool]:
 
 # ---------- running ----------
 
-def _load_cases(data: Path, include_scans: bool) -> list[GroundTruth]:
+def _load_cases(data: Path, subset: str = "pdf") -> list[GroundTruth]:
     rows = [json.loads(line) for line in (data / "manifest.jsonl").read_text().splitlines() if line.strip()]
     cases = []
     for row in rows:
-        if row["scanned"] and not include_scans:
+        if (subset == "pdf" and row["scanned"]) or (subset == "scans" and not row["scanned"]):
             continue
         cases.append(GroundTruth.model_validate_json((data / row["label"]).read_text(encoding="utf-8")))
     return cases
 
 
 def _predict_one(extractor, data: Path, gt: GroundTruth) -> dict:
-    from invoice_agent.extract import pdf_to_text
+    from invoice_agent.extract.document import extract_document
 
     try:
-        res = extractor.extract_text(pdf_to_text(data / gt.render.file))
+        res = extract_document(extractor, data / gt.render.file)
     except Exception as e:  # keep the run going; record the failure
         return {"doc_id": gt.doc_id, "error": f"{type(e).__name__}: {e}"}
     return {
@@ -94,6 +94,9 @@ def _predict_one(extractor, data: Path, gt: GroundTruth) -> dict:
         "latency_s": round(res.latency_s, 2),
         "model": res.model,
         "request_id": res.request_id,
+        "input_mode": res.input_mode,
+        "reads": res.reads,
+        "uncertain_fields": res.uncertain_fields,
     }
 
 
@@ -143,6 +146,7 @@ def score(run_dir: Path, cases: list[GroundTruth]) -> dict:
     by_template: dict[str, list[bool]] = defaultdict(list)
     by_currency: dict[str, list[bool]] = defaultdict(list)
     failures, cost, latency, tokens_in, tokens_out = [], 0.0, [], 0, 0
+    rereads, uncertain = 0, []
     errors = []
     for gt in cases:
         rec = latest.get(gt.doc_id)
@@ -153,6 +157,9 @@ def score(run_dir: Path, cases: list[GroundTruth]) -> dict:
         tokens_out += rec.get("output_tokens") or 0
         if rec.get("latency_s"):
             latency.append(rec["latency_s"])
+        rereads += (rec.get("reads") or 1) > 1
+        if rec.get("uncertain_fields"):
+            uncertain.append({"doc_id": gt.doc_id, "fields": rec["uncertain_fields"]})
         if not rec.get("invoice"):
             errors.append({"doc_id": gt.doc_id, "error": rec.get("error")})
             result = {k: False for k in compare(gt.invoice, gt.invoice)}  # every field counts as wrong
@@ -181,6 +188,8 @@ def score(run_dir: Path, cases: list[GroundTruth]) -> dict:
         "latency_p50_s": latency[len(latency) // 2] if latency else None,
         "latency_p95_s": latency[int(len(latency) * 0.95) - 1] if latency else None,
         "failures": failures,
+        "rereads": rereads,
+        "uncertain": uncertain,
     }
 
 
@@ -188,7 +197,9 @@ def render_report(summary: dict, title: str) -> str:
     lines = [f"# Extraction eval — {title}", "", f"Documents scored: {summary['documents']}  ",
              f"Errors (no output): {len(summary['errors'])}  ",
              f"Cost: ${summary['cost_usd_total']} total, ${summary['cost_usd_per_doc']}/doc  ",
-             f"Latency p50 / p95: {summary['latency_p50_s']}s / {summary['latency_p95_s']}s", "",
+             f"Latency p50 / p95: {summary['latency_p50_s']}s / {summary['latency_p95_s']}s  ",
+             f"Self-check re-reads: {summary.get('rereads', 0)} · held as uncertain (reads disagreed): "
+             f"{len(summary.get('uncertain', []))}", "",
              "| Field | Accuracy % |", "|---|---|"]
     lines += [f"| {k} | {v} |" for k, v in summary["field_accuracy"].items()]
     lines += ["", "| Template | All critical fields correct % |", "|---|---|"]
@@ -213,10 +224,12 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--effort", default=None, help="claude only")
     p.add_argument("--workers", type=int, default=None, help="default: 1 for ollama, 2 for free APIs, 4 for claude")
     p.add_argument("--report-only", action="store_true", help="rescore cached predictions; no API calls")
+    p.add_argument("--subset", choices=["pdf", "scans", "all"], default="pdf",
+                   help="digital PDFs (text layer), scans (vision), or both")
     a = p.parse_args(argv)
 
     data, run_dir = Path(a.data), Path(a.run)
-    cases = _load_cases(data, include_scans=False)  # week 2: digital PDFs only
+    cases = _load_cases(data, a.subset)
     if a.limit:
         cases = cases[: a.limit]
     if not a.report_only:
