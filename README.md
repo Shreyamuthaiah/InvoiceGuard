@@ -1,4 +1,6 @@
-# Invoice-to-Payment Agent
+# InvoiceGuard: AI invoice-to-payment automation with fraud controls
+
+[![tests](https://github.com/Shreyamuthaiah/Invoice-processing/actions/workflows/tests.yml/badge.svg)](https://github.com/Shreyamuthaiah/Invoice-processing/actions/workflows/tests.yml)
 
 An accounts-payable pipeline that reads vendor invoices, extracts them into a typed schema
 with an LLM, checks them against the vendor master and purchase orders, and decides whether
@@ -77,31 +79,33 @@ flowchart LR
 ## Quickstart
 
 ```bash
+git clone https://github.com/Shreyamuthaiah/Invoice-processing.git
+cd Invoice-processing
 python -m venv .venv && .venv\Scripts\activate        # Windows (source .venv/bin/activate elsewhere)
 pip install -e ".[dev]"
 
-python -m invoice_agent.synth --n 300 --seed 42        # labelled dataset -> data/synthetic
-python -m invoice_agent.synth --adversarial --out data/adversarial
+python -m invoiceguard.synth --n 300 --seed 42        # labelled dataset -> data/synthetic
+python -m invoiceguard.synth --adversarial --out data/adversarial
 pytest                                                 # 107 tests, no API calls
 
 # No model needed: run the full pipeline using the labels as a perfect extractor
-python -m invoice_agent.pipeline --out runs/demo --from-labels --today 2026-03-01
+python -m invoiceguard.pipeline --out runs/demo --from-labels --today 2026-03-01
 
 # Work the review queue as a human approver
-python -m invoice_agent.review --run runs/demo list
-python -m invoice_agent.review --run runs/demo approve PAY-00004 --as "Dana (AP manager)"
+python -m invoiceguard.review --run runs/demo list
+python -m invoiceguard.review --run runs/demo approve PAY-00004 --as "Dana (AP manager)"
 
 # Demo UI: pick or upload an invoice, see fields, findings, decision and payment
-python -m invoice_agent.ui --today 2026-03-01      # http://127.0.0.1:8765
+python -m invoiceguard.ui --today 2026-03-01      # http://127.0.0.1:8765
 ```
 
 With a model (free Gemini key from <https://aistudio.google.com/apikey>, saved in a
 gitignored `.env` file as `GEMINI_API_KEY=...`):
 
 ```bash
-python -m invoice_agent.evaluate --run runs/lite --model gemini-3.1-flash-lite
-python -m invoice_agent.checks_eval --predictions runs/lite/predictions.jsonl
-python -m invoice_agent.pipeline --out runs/pipe --from-predictions runs/lite/predictions.jsonl
+python -m invoiceguard.evaluate --run runs/lite --model gemini-3.1-flash-lite
+python -m invoiceguard.checks_eval --predictions runs/lite/predictions.jsonl
+python -m invoiceguard.pipeline --out runs/pipe --from-predictions runs/lite/predictions.jsonl
 ```
 
 Other backends: `--provider groq`, `--provider ollama` (fully local, e.g. `qwen2.5:7b`),
@@ -138,7 +142,7 @@ project generates one, deterministically from a seed:
 ## Project layout
 
 ```text
-src/invoice_agent/
+src/invoiceguard/
   schema.py          Pydantic domain model, anomalies, decision policy
   synth/             dataset generator, renderer, adversarial set
   extract/           PDF text, LLM backends (Gemini/Groq, Ollama, Claude), normalisers

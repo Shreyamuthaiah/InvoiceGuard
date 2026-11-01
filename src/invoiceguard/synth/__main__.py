@@ -1,9 +1,9 @@
-"""CLI: python -m invoice_agent.synth --n 300 --seed 42 --out data/synthetic"""
+"""CLI: python -m invoiceguard.synth --n 300 --seed 42 --out data/synthetic"""
 
 import argparse
 import json
 
-from invoice_agent.synth import DatasetGenerator, write_dataset
+from invoiceguard.synth import DatasetGenerator, write_dataset
 
 
 def main() -> None:
@@ -19,7 +19,7 @@ def main() -> None:
     p.add_argument("--per-kind", type=int, default=6, help="adversarial cases per kind")
     a = p.parse_args()
     if a.adversarial:
-        from invoice_agent.synth.adversarial import AdversarialGenerator
+        from invoiceguard.synth.adversarial import AdversarialGenerator
         ds = AdversarialGenerator(seed=a.seed, n_vendors=a.vendors, per_kind=a.per_kind).generate()
     else:
         ds = DatasetGenerator(seed=a.seed, n_vendors=a.vendors, scan_ratio=a.scan_ratio,

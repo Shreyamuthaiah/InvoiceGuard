@@ -8,12 +8,12 @@ from http.server import HTTPServer
 
 import pytest
 
-from invoice_agent.payments import PaymentError, PaymentPolicy
-from invoice_agent.pipeline import InvoicePipeline, labels_extractor
-from invoice_agent.review import ReviewDesk
-from invoice_agent.review import main as review_main
-from invoice_agent.synth import DatasetGenerator, write_dataset
-from invoice_agent.ui import Session, make_handler
+from invoiceguard.payments import PaymentError, PaymentPolicy
+from invoiceguard.pipeline import InvoicePipeline, labels_extractor
+from invoiceguard.review import ReviewDesk
+from invoiceguard.review import main as review_main
+from invoiceguard.synth import DatasetGenerator, write_dataset
+from invoiceguard.ui import Session, make_handler
 
 
 @pytest.fixture(scope="module")
@@ -91,7 +91,7 @@ def _call(url, data=None, method="GET"):
 def test_ui_serves_page_and_processes_in_order(server, data):
     ds, _ = data
     status, html = _call(server + "/")
-    assert status == 200 and b"Invoice Agent" in html and b"textContent" in html
+    assert status == 200 and b"InvoiceGuard" in html and b"textContent" in html
     docs = json.loads(_call(server + "/api/docs")[1])["synthetic"]["docs"]
     assert len(docs) == len(ds.cases)
     dup = next(g for g in ds.cases if g.duplicate_of and not g.render.scanned)

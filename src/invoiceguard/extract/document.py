@@ -15,9 +15,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from invoice_agent.extract.base import ExtractionResult, Extractor
-from invoice_agent.extract.pdf_text import has_text_layer, pdf_to_text
-from invoice_agent.schema import Invoice
+from invoiceguard.extract.base import ExtractionResult, Extractor
+from invoiceguard.extract.pdf_text import has_text_layer, pdf_to_text
+from invoiceguard.schema import Invoice
 
 IMAGE_TYPES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 

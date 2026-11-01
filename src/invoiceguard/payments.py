@@ -20,8 +20,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from invoice_agent.checks import norm_id
-from invoice_agent.schema import APPROVAL_THRESHOLDS, BankAccount, Decision, Invoice, Vendor
+from invoiceguard.checks import norm_id
+from invoiceguard.schema import APPROVAL_THRESHOLDS, BankAccount, Decision, Invoice, Vendor
 
 
 class PaymentError(Exception):

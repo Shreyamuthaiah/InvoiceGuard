@@ -7,8 +7,8 @@ import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-from invoice_agent.extract.models import ExtractedAddress, ExtractedBank, ExtractedInvoice
-from invoice_agent.schema import Address, BankAccount, Invoice, LineItem, money
+from invoiceguard.extract.models import ExtractedAddress, ExtractedBank, ExtractedInvoice
+from invoiceguard.schema import Address, BankAccount, Invoice, LineItem, money
 
 
 class NormalizationError(ValueError):

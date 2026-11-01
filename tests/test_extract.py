@@ -6,11 +6,11 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from invoice_agent.evaluate import compare, run_predictions, score
-from invoice_agent.extract import OllamaExtractor, pdf_to_text, to_invoice
-from invoice_agent.extract.llm import ClaudeExtractor
-from invoice_agent.extract.models import ExtractedAddress, ExtractedBank, ExtractedInvoice, ExtractedLineItem
-from invoice_agent.extract.normalize import (
+from invoiceguard.evaluate import compare, run_predictions, score
+from invoiceguard.extract import OllamaExtractor, pdf_to_text, to_invoice
+from invoiceguard.extract.llm import ClaudeExtractor
+from invoiceguard.extract.models import ExtractedAddress, ExtractedBank, ExtractedInvoice, ExtractedLineItem
+from invoiceguard.extract.normalize import (
     NormalizationError,
     date_candidates,
     parse_money,
@@ -18,11 +18,11 @@ from invoice_agent.extract.normalize import (
     parse_rate,
     resolve_dates,
 )
-from invoice_agent.extract.ollama import PROMPT, SCHEMA
-from invoice_agent.extract.openai_compat import OpenAICompatExtractor
-from invoice_agent.schema import GroundTruth
-from invoice_agent.synth import DatasetGenerator, write_dataset
-from invoice_agent.synth.render import fmt_date, fmt_money, fmt_qty, fmt_rate, fmt_unit, resolve_style
+from invoiceguard.extract.ollama import PROMPT, SCHEMA
+from invoiceguard.extract.openai_compat import OpenAICompatExtractor
+from invoiceguard.schema import GroundTruth
+from invoiceguard.synth import DatasetGenerator, write_dataset
+from invoiceguard.synth.render import fmt_date, fmt_money, fmt_qty, fmt_rate, fmt_unit, resolve_style
 
 # ---------- number / date normalisation ----------
 
@@ -47,8 +47,8 @@ def test_parse_money_rounds_and_rejects_garbage():
 
 
 def test_iban_copied_into_account_number_is_dropped_and_banks_compare_by_iban():
-    from invoice_agent.extract.normalize import _bank
-    from invoice_agent.schema import BankAccount
+    from invoiceguard.extract.normalize import _bank
+    from invoiceguard.schema import BankAccount
     b = _bank(ExtractedBank(bank_name="X", account_name="Y", account_number="DE50 3219 6168",
                             iban="DE5032196168", swift="ABCDEFXX"))
     assert b.account_number is None and b.iban == "DE5032196168"
@@ -325,7 +325,7 @@ def test_compat_requires_key(monkeypatch, tmp_path):
 
 
 def test_read_key_from_env_file(tmp_path, monkeypatch):
-    from invoice_agent.extract.openai_compat import read_key
+    from invoiceguard.extract.openai_compat import read_key
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     env = tmp_path / ".env"
     env.write_text('# comment\nGROQ_API_KEY=abc\nGEMINI_API_KEY="xyz"\n', encoding="utf-8")
@@ -335,7 +335,7 @@ def test_read_key_from_env_file(tmp_path, monkeypatch):
 
 
 def test_daily_quota_is_not_retried_and_stops_run(small_dataset, tmp_path):
-    from invoice_agent.extract.openai_compat import QUOTA_EXHAUSTED
+    from invoiceguard.extract.openai_compat import QUOTA_EXHAUSTED
     ds, out = small_dataset
     pdf_cases = [g for g in ds.cases if not g.render.scanned][:4]
     quota = (429, [{"error": {"code": 429, "message": "per day limit",

@@ -13,8 +13,8 @@ import time
 
 import httpx
 
-from invoice_agent.extract.base import ExtractionResult, finish, image_message, user_message
-from invoice_agent.extract.jsonschema import PROMPT, SCHEMA  # noqa: F401 (re-exported)
+from invoiceguard.extract.base import ExtractionResult, finish, image_message, user_message
+from invoiceguard.extract.jsonschema import PROMPT, SCHEMA  # noqa: F401 (re-exported)
 
 DEFAULT_MODEL = "qwen2.5:7b"
 DEFAULT_HOST = "http://localhost:11434"

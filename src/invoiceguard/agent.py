@@ -21,8 +21,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from invoice_agent.checks import CheckReport, InvoiceChecker, name_similarity, norm_name
-from invoice_agent.schema import BankAccount, Decision, Invoice
+from invoiceguard.checks import CheckReport, InvoiceChecker, name_similarity, norm_name
+from invoiceguard.schema import BankAccount, Decision, Invoice
 
 CHECK_NAMES = ["vendor", "po", "duplicate", "split", "bank", "arithmetic", "instructions", "extraction"]
 

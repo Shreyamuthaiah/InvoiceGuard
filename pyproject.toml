@@ -3,9 +3,9 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "invoice-agent"
+name = "invoiceguard"
 version = "0.1.0"
-description = "Invoice-to-payment agent: extraction, validation, matching and payment decisions."
+description = "InvoiceGuard: AI invoice-to-payment automation with fraud controls (LLM extraction, deterministic checks, review agent, safe payments)."
 requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0",
@@ -37,8 +37,8 @@ ignore = ["SIM108"]  # explicit if/else often reads better than a long ternary
 
 [tool.ruff.lint.per-file-ignores]
 # Drawing code keeps coordinate pairs on one line; the UI embeds its HTML/JS page as a string.
-"src/invoice_agent/synth/render.py" = ["E702", "E501"]
-"src/invoice_agent/ui.py" = ["E501"]
+"src/invoiceguard/synth/render.py" = ["E702", "E501"]
+"src/invoiceguard/ui.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.10"

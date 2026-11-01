@@ -7,8 +7,8 @@ import random
 from collections import Counter
 from pathlib import Path
 
-from invoice_agent.synth.generator import Dataset
-from invoice_agent.synth.render import degrade_to_scan, render_pdf_bytes
+from invoiceguard.synth.generator import Dataset
+from invoiceguard.synth.render import degrade_to_scan, render_pdf_bytes
 
 
 def _dump(models) -> str:

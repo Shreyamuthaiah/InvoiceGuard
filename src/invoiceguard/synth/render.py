@@ -19,7 +19,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
-from invoice_agent.schema import Injection, Invoice, Style
+from invoiceguard.schema import Injection, Invoice, Style
 
 W, H = letter
 SYMBOLS = {"USD": "$", "EUR": "€", "GBP": "£"}

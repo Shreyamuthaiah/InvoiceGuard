@@ -2,11 +2,11 @@ import json
 
 import pytest
 
-from invoice_agent.agent import ReviewAgent
-from invoice_agent.agent_eval import score_review, summarize, ungrounded_numbers
-from invoice_agent.checks import InvoiceChecker
-from invoice_agent.schema import Anomaly, Decision
-from invoice_agent.synth import DatasetGenerator
+from invoiceguard.agent import ReviewAgent
+from invoiceguard.agent_eval import score_review, summarize, ungrounded_numbers
+from invoiceguard.checks import InvoiceChecker
+from invoiceguard.schema import Anomaly, Decision
+from invoiceguard.synth import DatasetGenerator
 
 
 @pytest.fixture(scope="module")
@@ -117,7 +117,7 @@ def test_scoring_and_grounding():
 def test_pipeline_explains_only_held_and_rejected(ds, tmp_path):
     from datetime import date
 
-    from invoice_agent.pipeline import InvoicePipeline
+    from invoiceguard.pipeline import InvoicePipeline
 
     class AlwaysSubmits(ScriptedLLM):
         def chat(self, payload):
@@ -139,7 +139,7 @@ def test_pipeline_explains_only_held_and_rejected(ds, tmp_path):
 
 
 def test_grounding_accepts_formatting_and_simple_derivations():
-    from invoice_agent.agent_eval import classify_numbers
+    from invoiceguard.agent_eval import classify_numbers
     ctx = '{"subtotal": "1844.86", "po_total": "1677.42", "threshold": 10000, "qty": "4", "amount": "1354.92"}'
     text = "Over the 10,000.00 threshold; 167.44 above the PO; 338.73 per chair; total 5,555.55."
     derived, ungrounded = classify_numbers(text, ctx)

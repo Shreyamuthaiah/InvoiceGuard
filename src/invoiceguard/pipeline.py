@@ -1,11 +1,11 @@
 """End-to-end invoice processing: extract -> check -> decide -> pay, with an audit log.
 
     # live extraction with a free API (uses quota)
-    python -m invoice_agent.pipeline --out runs/pipeline --provider gemini --limit 10
+    python -m invoiceguard.pipeline --out runs/pipeline --provider gemini --limit 10
     # reuse cached extractions from an eval run (no API calls)
-    python -m invoice_agent.pipeline --out runs/pipeline --from-predictions runs/X/predictions.jsonl
+    python -m invoiceguard.pipeline --out runs/pipeline --from-predictions runs/X/predictions.jsonl
     # demo without any model: use the labels as a perfect extractor
-    python -m invoice_agent.pipeline --out runs/pipeline-demo --from-labels
+    python -m invoiceguard.pipeline --out runs/pipeline-demo --from-labels
 
 Outputs in --out: audit.jsonl (one record per invoice), review_queue.jsonl (holds and
 rejects with reasons), payments.json (payment store), summary.md.
@@ -23,9 +23,9 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
-from invoice_agent.checks import CheckReport, InvoiceChecker
-from invoice_agent.payments import MockPaymentsAPI, Payment, PaymentError, PaymentPolicy
-from invoice_agent.schema import Decision, Invoice, PurchaseOrder, Vendor
+from invoiceguard.checks import CheckReport, InvoiceChecker
+from invoiceguard.payments import MockPaymentsAPI, Payment, PaymentError, PaymentPolicy
+from invoiceguard.schema import Decision, Invoice, PurchaseOrder, Vendor
 
 # (doc_id, path) -> (invoice or None, error or None, extractor label[, uncertain fields])
 ExtractFn = Callable[[str, Path], tuple]
@@ -48,7 +48,7 @@ class ProcessResult:
 def _text(path: Path) -> str | None:
     if path.suffix.lower() != ".pdf" or not path.exists():
         return None
-    from invoice_agent.extract import pdf_to_text
+    from invoiceguard.extract import pdf_to_text
 
     return pdf_to_text(path)
 
@@ -64,7 +64,7 @@ class InvoicePipeline:
         self.checker = InvoiceChecker(vendors, purchase_orders)
         self.agent = None
         if explain_llm is not None:
-            from invoice_agent.agent import ReviewAgent
+            from invoiceguard.agent import ReviewAgent
             self.agent = ReviewAgent(explain_llm, self.checker)
         self.payments = MockPaymentsAPI(out_dir / "payments.json", policy)
         self.out_dir = out_dir
@@ -173,7 +173,7 @@ def summarize(results: list[ProcessResult], payments: MockPaymentsAPI, today: da
 # ---------- extraction sources ----------
 
 def labels_extractor(data: Path) -> ExtractFn:
-    from invoice_agent.schema import GroundTruth
+    from invoiceguard.schema import GroundTruth
 
     def fn(doc_id: str, path: Path):
         gt = GroundTruth.model_validate_json((data / "labels" / f"{doc_id}.json").read_text(encoding="utf-8"))
@@ -201,8 +201,8 @@ def predictions_extractor(path: Path) -> ExtractFn:
 
 
 def live_extractor(provider: str, model: str | None) -> ExtractFn:
-    from invoice_agent.extract import make_extractor
-    from invoice_agent.extract.document import extract_document
+    from invoiceguard.extract import make_extractor
+    from invoiceguard.extract.document import extract_document
 
     extractor = make_extractor(provider, model)
 
@@ -213,7 +213,7 @@ def live_extractor(provider: str, model: str | None) -> ExtractFn:
 
 
 def main(argv: list[str] | None = None) -> None:
-    from invoice_agent.checks_eval import load
+    from invoiceguard.checks_eval import load
 
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--data", default="data/synthetic", help="vendors.json, purchase_orders.json, docs/")
@@ -247,7 +247,7 @@ def main(argv: list[str] | None = None) -> None:
 
     explain_llm = None
     if a.explain:
-        from invoice_agent.extract.openai_compat import OpenAICompatExtractor
+        from invoiceguard.extract.openai_compat import OpenAICompatExtractor
         explain_llm = OpenAICompatExtractor(a.provider if a.provider in ("gemini", "groq") else "gemini",
                                             model=a.explain_model)
     pipe = InvoicePipeline(vendors, pos, extract, out, today, explain_llm=explain_llm)

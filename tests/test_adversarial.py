@@ -4,12 +4,12 @@ from datetime import timedelta
 
 import pytest
 
-from invoice_agent.checks import InvoiceChecker, check_instructions
-from invoice_agent.checks_eval import evaluate, load_texts
-from invoice_agent.extract import pdf_to_text
-from invoice_agent.schema import APPROVAL_THRESHOLDS, Anomaly, Decision
-from invoice_agent.synth import DatasetGenerator, write_dataset
-from invoice_agent.synth.adversarial import KINDS, AdversarialGenerator, lookalike_name
+from invoiceguard.checks import InvoiceChecker, check_instructions
+from invoiceguard.checks_eval import evaluate, load_texts
+from invoiceguard.extract import pdf_to_text
+from invoiceguard.schema import APPROVAL_THRESHOLDS, Anomaly, Decision
+from invoiceguard.synth import DatasetGenerator, write_dataset
+from invoiceguard.synth.adversarial import KINDS, AdversarialGenerator, lookalike_name
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +57,7 @@ def test_injections_are_in_the_text_layer_but_hidden_ones_are_invisible(adv):
 def test_hidden_total_label_keeps_printed_values(adv):
     ds, out = adv
     g = next(g for g in ds.cases if "Labels keep the printed values" in " ".join(g.notes))
-    from invoice_agent.synth.render import fmt_money, resolve_style
+    from invoiceguard.synth.render import fmt_money, resolve_style
     text = pdf_to_text(out / g.render.file)
     st = resolve_style(g.render.template, g.invoice.currency, g.render.style)
     assert fmt_money(g.invoice.total, g.invoice.currency, st.money) in text  # real total is printed
@@ -118,7 +118,7 @@ def test_po_overbilling_across_invoices():
 def test_adversarial_cli(tmp_path):
     import sys
 
-    from invoice_agent.synth.__main__ import main
+    from invoiceguard.synth.__main__ import main
     argv = sys.argv
     sys.argv = ["synth", "--adversarial", "--per-kind", "2", "--vendors", "6", "--out", str(tmp_path)]
     try:

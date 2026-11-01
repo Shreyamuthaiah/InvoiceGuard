@@ -1,7 +1,7 @@
 """Evaluate the review agent's explanations on held/rejected invoices.
 
-    python -m invoice_agent.agent_eval --data data/synthetic --run runs/agent-main --limit 30
-    python -m invoice_agent.agent_eval --data data/adversarial --run runs/agent-adv
+    python -m invoiceguard.agent_eval --data data/synthetic --run runs/agent-main --limit 30
+    python -m invoiceguard.agent_eval --data data/adversarial --run runs/agent-adv
 
 Invoices go through the checks in document order (so duplicate/split history builds up);
 each held or rejected one is explained by the agent. Metrics:
@@ -22,10 +22,10 @@ import re
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from invoice_agent.agent import ReviewAgent
-from invoice_agent.checks import InvoiceChecker
-from invoice_agent.checks_eval import load, load_texts
-from invoice_agent.schema import Decision
+from invoiceguard.agent import ReviewAgent
+from invoiceguard.checks import InvoiceChecker
+from invoiceguard.checks_eval import load, load_texts
+from invoiceguard.schema import Decision
 
 _NUM = re.compile(r"\d[\d,]*\.\d+|\d{3,}")
 _CTX_NUM = re.compile(r"\d+(?:\.\d+)?")  # no sign: "PO-2600104" is an identifier, not -2600104
@@ -187,7 +187,7 @@ def main(argv: list[str] | None = None) -> None:
         records = [json.loads(line) for line in (run_dir / "reviews.jsonl").read_text(encoding="utf-8").splitlines()]
         records = list({r["doc_id"]: r for r in records}.values())
     else:
-        from invoice_agent.extract.openai_compat import OpenAICompatExtractor
+        from invoiceguard.extract.openai_compat import OpenAICompatExtractor
         llm = OpenAICompatExtractor(a.provider, model=a.model)
         (run_dir).mkdir(parents=True, exist_ok=True)
         (run_dir / "config.json").write_text(json.dumps({"provider": a.provider, "model": llm.model}))

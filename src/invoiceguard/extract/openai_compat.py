@@ -17,8 +17,8 @@ from pathlib import Path
 
 import httpx
 
-from invoice_agent.extract.base import ExtractionResult, finish, image_message, user_message
-from invoice_agent.extract.jsonschema import PROMPT, SCHEMA, close_objects
+from invoiceguard.extract.base import ExtractionResult, finish, image_message, user_message
+from invoiceguard.extract.jsonschema import PROMPT, SCHEMA, close_objects
 
 
 @dataclass(frozen=True)

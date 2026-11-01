@@ -10,7 +10,7 @@ from typing import Literal
 
 from faker import Faker
 
-from invoice_agent.schema import (
+from invoiceguard.schema import (
     PO_TOLERANCE,
     Address,
     Anomaly,
@@ -25,8 +25,8 @@ from invoice_agent.schema import (
     expected_decision,
     money,
 )
-from invoice_agent.synth import catalog
-from invoice_agent.synth.render import make_style
+from invoiceguard.synth import catalog
+from invoiceguard.synth.render import make_style
 
 # Probability of each case type; "clean" means no anomaly.
 DEFAULT_WEIGHTS: dict[str, float] = {

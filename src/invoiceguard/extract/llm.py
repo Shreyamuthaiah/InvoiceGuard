@@ -5,8 +5,8 @@ from __future__ import annotations
 import base64
 import time
 
-from invoice_agent.extract.base import SYSTEM_PROMPT, ExtractionResult, finish, image_message, user_message
-from invoice_agent.extract.models import ExtractedInvoice
+from invoiceguard.extract.base import SYSTEM_PROMPT, ExtractionResult, finish, image_message, user_message
+from invoiceguard.extract.models import ExtractedInvoice
 
 DEFAULT_MODEL = "claude-opus-5-5"
 DEFAULT_EFFORT = "low"  # extraction is transcription, not reasoning; raise if eval says so
@@ -20,7 +20,7 @@ class ClaudeExtractor:
 
         self._anthropic = anthropic
         if client is None:
-            from invoice_agent.extract.openai_compat import read_key
+            from invoiceguard.extract.openai_compat import read_key
 
             # Env var / `ant auth login` profile first (SDK default); else a line in ./.env.
             key = read_key("ANTHROPIC_API_KEY")

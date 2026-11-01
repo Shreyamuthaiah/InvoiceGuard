@@ -4,10 +4,10 @@ from decimal import Decimal
 
 import pytest
 
-from invoice_agent.payments import MockPaymentsAPI, PaymentError, PaymentPolicy
-from invoice_agent.pipeline import InvoicePipeline, labels_extractor
-from invoice_agent.schema import Decision
-from invoice_agent.synth import DatasetGenerator, write_dataset
+from invoiceguard.payments import MockPaymentsAPI, PaymentError, PaymentPolicy
+from invoiceguard.pipeline import InvoicePipeline, labels_extractor
+from invoiceguard.schema import Decision
+from invoiceguard.synth import DatasetGenerator, write_dataset
 
 
 @pytest.fixture(scope="module")

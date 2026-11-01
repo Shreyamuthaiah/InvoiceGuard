@@ -1,7 +1,7 @@
 """Local demo UI: pick or upload an invoice, see extraction, findings, decision and payment.
 
-    python -m invoice_agent.ui            # http://127.0.0.1:8765
-    python -m invoice_agent.ui --port 9000 --today 2026-03-01
+    python -m invoiceguard.ui            # http://127.0.0.1:8765
+    python -m invoiceguard.ui --port 9000 --today 2026-03-01
 
 Sources: "labels" (instant, no model), "cached" (predictions from an eval run, no API calls),
 "live" (calls the configured provider; default Gemini, uses free-tier quota).
@@ -23,8 +23,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from invoice_agent.checks_eval import load
-from invoice_agent.pipeline import (
+from invoiceguard.checks_eval import load
+from invoiceguard.pipeline import (
     ExtractFn,
     InvoicePipeline,
     ProcessResult,
@@ -32,7 +32,7 @@ from invoice_agent.pipeline import (
     live_extractor,
     predictions_extractor,
 )
-from invoice_agent.schema import GroundTruth
+from invoiceguard.schema import GroundTruth
 
 
 def project_root() -> Path:
@@ -40,7 +40,7 @@ def project_root() -> Path:
     from this file's location, so the UI works no matter where it is launched from."""
     for start in (Path.cwd(), Path(__file__).resolve()):
         for d in [start, *start.parents]:
-            if (d / "pyproject.toml").exists() and (d / "src" / "invoice_agent").exists():
+            if (d / "pyproject.toml").exists() and (d / "src" / "invoiceguard").exists():
                 return d
     return Path.cwd()
 
@@ -85,7 +85,7 @@ class Session:
                  today: date, explain_llm=None) -> None:
         self.datasets = {p.name: Dataset(p) for p in datasets if (p / "manifest.jsonl").exists()}
         if not self.datasets:
-            raise SystemExit("no datasets found; run `python -m invoice_agent.synth` first")
+            raise SystemExit("no datasets found; run `python -m invoiceguard.synth` first")
         self.out_root, self.provider, self.model, self.today = out_root, provider, model, today
         self.explain_llm = explain_llm
         self._live: ExtractFn | None = None
@@ -226,7 +226,7 @@ def make_handler(session: Session):
 
 PAGE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Invoice Agent</title>
+<title>InvoiceGuard</title>
 <style>
 :root{color-scheme:light dark;--bg:#f6f7f9;--panel:#fff;--ink:#1d2330;--muted:#667085;--line:#e4e7ec;--accent:#2f5bd3;
 --ok:#137a3d;--okbg:#e6f4ec;--warn:#9a5b00;--warnbg:#fdf3e1;--bad:#b42318;--badbg:#fdecea}
@@ -256,7 +256,7 @@ th{color:var(--muted);font-weight:500;width:38%}td.num{text-align:right;font-var
 .stack{display:grid;gap:16px}.muted{color:var(--muted)}.empty{padding:40px;color:var(--muted)}
 @media (max-width:900px){main{grid-template-columns:1fr}#view{grid-template-columns:1fr}#list{max-height:300px}}
 </style></head><body>
-<header><h1>Invoice Agent</h1><span class="stat" id="stats"></span><span style="flex:1"></span>
+<header><h1>InvoiceGuard</h1><span class="stat" id="stats"></span><span style="flex:1"></span>
 <button id="reset" title="Start a new session (clears the duplicate ledger and payments)">New session</button></header>
 <main><aside><div class="controls">
 <div><label>Dataset</label><br><select id="dataset"></select></div>
@@ -326,20 +326,20 @@ def main(argv: list[str] | None = None) -> None:
     found = [d for d in data if (d / "manifest.jsonl").exists()]
     if not found:
         raise SystemExit(f"No datasets found in {', '.join(str(d) for d in data)}.\n"
-                         f"Create one with:  python -m invoice_agent.synth --out {ROOT / 'data' / 'synthetic'}")
+                         f"Create one with:  python -m invoiceguard.synth --out {ROOT / 'data' / 'synthetic'}")
     explain_llm = None
     if a.explain:
-        from invoice_agent.extract.openai_compat import OpenAICompatExtractor
+        from invoiceguard.extract.openai_compat import OpenAICompatExtractor
         explain_llm = OpenAICompatExtractor("gemini", model=a.model)
     session = Session(found, Path(a.out) if a.out else ROOT / "runs" / "ui", a.provider, a.model, today,
                       explain_llm)
     try:
         server = HTTPServer(("127.0.0.1", a.port), make_handler(session))
     except OSError as e:
-        raise SystemExit(f"Port {a.port} is busy ({e}). Try:  python -m invoice_agent.ui --port 8800") from e
+        raise SystemExit(f"Port {a.port} is busy ({e}). Try:  python -m invoiceguard.ui --port 8800") from e
     url = f"http://127.0.0.1:{a.port}"
     print(f"Datasets: {', '.join(str(d) for d in found)}")
-    print(f"Invoice Agent UI running at {url}  (keep this window open; Ctrl+C to stop)", flush=True)
+    print(f"InvoiceGuard UI running at {url}  (keep this window open; Ctrl+C to stop)", flush=True)
     if not a.no_browser:
         import webbrowser
         threading.Timer(0.5, webbrowser.open, args=(url,)).start()  # server is already bound

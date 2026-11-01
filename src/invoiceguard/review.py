@@ -1,10 +1,10 @@
 """The human side of the pipeline: work the review queue and sign off payments.
 
-    python -m invoice_agent.review --run runs/pipe list
-    python -m invoice_agent.review --run runs/pipe show doc_0042
-    python -m invoice_agent.review --run runs/pipe payments
-    python -m invoice_agent.review --run runs/pipe approve PAY-00007 --as "Dana (AP manager)"
-    python -m invoice_agent.review --run runs/pipe cancel PAY-00007 --as "Dana" --reason "vendor called"
+    python -m invoiceguard.review --run runs/pipe list
+    python -m invoiceguard.review --run runs/pipe show doc_0042
+    python -m invoiceguard.review --run runs/pipe payments
+    python -m invoiceguard.review --run runs/pipe approve PAY-00007 --as "Dana (AP manager)"
+    python -m invoiceguard.review --run runs/pipe cancel PAY-00007 --as "Dana" --reason "vendor called"
 
 Every approve/cancel is appended to audit.jsonl with who did it and when.
 """
@@ -17,7 +17,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from invoice_agent.payments import MockPaymentsAPI, Payment, PaymentError
+from invoiceguard.payments import MockPaymentsAPI, Payment, PaymentError
 
 
 def _jsonl(path: Path) -> list[dict]:

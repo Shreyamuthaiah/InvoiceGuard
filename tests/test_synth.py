@@ -5,9 +5,9 @@ import pymupdf
 import pytest
 from PIL import Image
 
-from invoice_agent.schema import PO_TOLERANCE, Anomaly, Decision, GroundTruth, Vendor
-from invoice_agent.synth import DatasetGenerator, write_dataset
-from invoice_agent.synth.render import fmt_money, resolve_style
+from invoiceguard.schema import PO_TOLERANCE, Anomaly, Decision, GroundTruth, Vendor
+from invoiceguard.synth import DatasetGenerator, write_dataset
+from invoiceguard.synth.render import fmt_money, resolve_style
 
 N = 80
 

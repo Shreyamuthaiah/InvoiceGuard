@@ -7,9 +7,9 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
-from invoice_agent.extract.models import ExtractedInvoice
-from invoice_agent.extract.normalize import NormalizationError, to_invoice
-from invoice_agent.schema import Invoice
+from invoiceguard.extract.models import ExtractedInvoice
+from invoiceguard.extract.normalize import NormalizationError, to_invoice
+from invoiceguard.schema import Invoice
 
 # Providers used on free tiers / locally: reported cost is $0.
 FREE_PROVIDERS = {"ollama", "gemini", "groq"}

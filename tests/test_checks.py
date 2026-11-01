@@ -2,10 +2,10 @@ from decimal import Decimal
 
 import pytest
 
-from invoice_agent.checks import InvoiceChecker, name_similarity, norm_id, norm_name
-from invoice_agent.checks_eval import evaluate
-from invoice_agent.schema import Anomaly, Decision
-from invoice_agent.synth import DatasetGenerator
+from invoiceguard.checks import InvoiceChecker, name_similarity, norm_id, norm_name
+from invoiceguard.checks_eval import evaluate
+from invoiceguard.schema import Anomaly, Decision
+from invoiceguard.synth import DatasetGenerator
 
 
 @pytest.fixture(scope="module")

@@ -16,7 +16,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from invoice_agent.schema import (
+from invoiceguard.schema import (
     APPROVAL_THRESHOLDS,
     PO_TOLERANCE,
     Anomaly,

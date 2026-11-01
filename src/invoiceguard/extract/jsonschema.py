@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from invoice_agent.extract.base import SYSTEM_PROMPT
-from invoice_agent.extract.models import ExtractedInvoice
+from invoiceguard.extract.base import SYSTEM_PROMPT
+from invoiceguard.extract.models import ExtractedInvoice
 
 
 def inline_refs(schema: dict[str, Any]) -> dict[str, Any]:

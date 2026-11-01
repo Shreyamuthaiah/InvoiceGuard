@@ -7,12 +7,12 @@ import httpx
 import pymupdf
 import pytest
 
-from invoice_agent.extract.base import ExtractionResult
-from invoice_agent.extract.document import extract_document, key_fields, validation_issues
-from invoice_agent.extract.openai_compat import OpenAICompatExtractor
-from invoice_agent.pipeline import InvoicePipeline
-from invoice_agent.schema import Anomaly, Decision
-from invoice_agent.synth import DatasetGenerator, write_dataset
+from invoiceguard.extract.base import ExtractionResult
+from invoiceguard.extract.document import extract_document, key_fields, validation_issues
+from invoiceguard.extract.openai_compat import OpenAICompatExtractor
+from invoiceguard.pipeline import InvoicePipeline
+from invoiceguard.schema import Anomaly, Decision
+from invoiceguard.synth import DatasetGenerator, write_dataset
 
 
 @pytest.fixture(scope="module")

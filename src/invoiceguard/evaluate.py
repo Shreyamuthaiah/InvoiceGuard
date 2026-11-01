@@ -1,6 +1,6 @@
 """Extraction eval: compare predicted `Invoice`s to ground-truth labels, field by field.
 
-    python -m invoice_agent.evaluate --data data/synthetic --run runs/opus-low --limit 20
+    python -m invoiceguard.evaluate --data data/synthetic --run runs/opus-low --limit 20
 
 Predictions are cached in <run>/predictions.jsonl; re-running resumes and never re-bills a
 document that already has a prediction. Use --report-only to rescore without API calls.
@@ -17,7 +17,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from invoice_agent.schema import Address, GroundTruth, Invoice
+from invoiceguard.schema import Address, GroundTruth, Invoice
 
 # Fields that must be right for the invoice to be payable without a human fixing it.
 CRITICAL_FIELDS = [
@@ -42,8 +42,8 @@ def prediction_invoice(rec: dict) -> Invoice:
     """The invoice for a stored prediction. Re-normalises the raw model output with the current
     code when available, so fixes to the deterministic normalisers show up without API calls."""
     if rec.get("raw"):
-        from invoice_agent.extract.models import ExtractedInvoice
-        from invoice_agent.extract.normalize import to_invoice
+        from invoiceguard.extract.models import ExtractedInvoice
+        from invoiceguard.extract.normalize import to_invoice
         try:
             return to_invoice(ExtractedInvoice.model_validate(rec["raw"]))[0]
         except ValueError:
@@ -89,7 +89,7 @@ def _load_cases(data: Path, subset: str = "pdf") -> list[GroundTruth]:
 
 
 def _predict_one(extractor, data: Path, gt: GroundTruth) -> dict:
-    from invoice_agent.extract.document import extract_document
+    from invoiceguard.extract.document import extract_document
 
     try:
         res = extract_document(extractor, data / gt.render.file)
@@ -246,7 +246,7 @@ def main(argv: list[str] | None = None) -> None:
     if a.limit:
         cases = cases[: a.limit]
     if not a.report_only:
-        from invoice_agent.extract import make_extractor
+        from invoiceguard.extract import make_extractor
 
         kwargs = {"effort": a.effort} if (a.provider == "claude" and a.effort) else {}
         extractor = make_extractor(a.provider, a.model, **kwargs)

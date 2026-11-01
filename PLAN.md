@@ -1,4 +1,4 @@
-# Invoice-to-Payment Agent — Build Plan
+# InvoiceGuard — Build Plan
 
 Goal: an agent that takes a vendor invoice (digital PDF or scanned image), extracts it into a
 typed schema, validates it against the vendor master and purchase orders, flags fraud/duplicate
@@ -22,7 +22,7 @@ Every week ends with something runnable plus tests, and the eval numbers are tra
       vendor id, injected anomalies, expected decision
 - [x] Tests: schema validity, arithmetic consistency, PDF text round-trip, determinism
 
-**Exit:** `python -m invoice_agent.synth --n 300 --seed 42` produces a reproducible dataset.
+**Exit:** `python -m invoiceguard.synth --n 300 --seed 42` produces a reproducible dataset.
 
 ## Week 2 — Extraction v1 (digital PDFs) ✅
 

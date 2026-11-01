@@ -1,7 +1,7 @@
 """Score the checks against ground-truth anomaly labels and expected decisions.
 
-    python -m invoice_agent.checks_eval --data data/synthetic                  # on label invoices
-    python -m invoice_agent.checks_eval --predictions runs/X/predictions.jsonl  # end to end
+    python -m invoiceguard.checks_eval --data data/synthetic                  # on label invoices
+    python -m invoiceguard.checks_eval --predictions runs/X/predictions.jsonl  # end to end
 
 With --predictions, each document's *extracted* invoice is checked instead of the label,
 so extraction errors flow through into decisions. Documents without a prediction are skipped.
@@ -15,9 +15,9 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from invoice_agent.checks import InvoiceChecker
-from invoice_agent.evaluate import prediction_invoice
-from invoice_agent.schema import (
+from invoiceguard.checks import InvoiceChecker
+from invoiceguard.evaluate import prediction_invoice
+from invoiceguard.schema import (
     Anomaly,
     Decision,
     GroundTruth,
@@ -56,7 +56,7 @@ def load_predictions(*paths: Path) -> tuple[dict[str, Invoice], set[str]]:
 
 def load_texts(data: Path, cases: list[GroundTruth]) -> dict[str, str]:
     """PDF text layer per document, for the suspicious-instructions check."""
-    from invoice_agent.extract import pdf_to_text
+    from invoiceguard.extract import pdf_to_text
 
     return {gt.doc_id: pdf_to_text(data / gt.render.file) for gt in cases
             if gt.render.format == "pdf" and (data / gt.render.file).exists()}

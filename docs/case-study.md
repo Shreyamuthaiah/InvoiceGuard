@@ -1,4 +1,4 @@
-# Building an invoice-to-payment agent that fails safely
+# InvoiceGuard: building an AI invoice-to-payment agent that fails safely
 
 *A case study: what I built, how I measured it, and what broke along the way.*
 
