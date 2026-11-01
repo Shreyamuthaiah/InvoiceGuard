@@ -18,7 +18,13 @@ class ClaudeExtractor:
         import anthropic  # imported lazily so the free Ollama path doesn't need it
 
         self._anthropic = anthropic
-        self.client = client or anthropic.Anthropic()
+        if client is None:
+            from invoice_agent.extract.openai_compat import read_key
+
+            # Env var / `ant auth login` profile first (SDK default); else a line in ./.env.
+            key = read_key("ANTHROPIC_API_KEY")
+            client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
+        self.client = client
         self.model = model
         self.effort = effort
 
