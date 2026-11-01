@@ -1,8 +1,9 @@
 # Evaluation
 
 All numbers come from the commands in each section and can be reproduced from the seed
-(`--seed 42`). Scanned documents (~30%) are excluded until the vision path (week 3)
-exists, so runs cover the **219 digital PDFs** of the 300-invoice dataset.
+(`--seed 42`). The 300-invoice dataset has **219 digital PDFs** (read from the text layer)
+and **81 scans** (read as images). Scorers re-apply the current normalisation code to the
+stored raw model output, so fixes to deterministic code are reflected without new API calls.
 
 "Critical fields" = invoice number, invoice date, due date, PO number, vendor name, vendor
 tax ID, currency, subtotal, tax, total, and remit-to account. An invoice counts as correct
@@ -16,6 +17,7 @@ only if **all** of them are exact.
 | --- | --- | --- | --- | --- | --- | --- |
 | `gemini-3.1-flash-lite` | **v2** (per-vendor layouts) | 219 | **100%** | **100%** | 12 s | $0 |
 | `gemini-3.1-flash-lite` | **adversarial** | 50 | **100%** | **100%** | 12 s | $0 |
+| `gemini-3.5-flash-lite` | **scans** (vision) | 81 | **98.8%** | 96.3% | 12 s | $0 |
 | `gemini-3.1-flash-lite` | v1 (3 fixed layouts) | 219 | 100% | 91.8% address* | 12 s | $0 |
 | `gemini-3.5-flash` | v1 | 21 | 95.2% | — | 12 s | $0 |
 | `qwen2.5:7b` (Ollama, laptop CPU) | v1 | 3 | 66.7% | — | 189 s | $0 |
@@ -45,6 +47,28 @@ in v2 by printing the break as a space.
 - Free-tier caps aren't published. Runs now stop on a daily quota instead of retrying for
   hours, and quota failures aren't counted against accuracy.
 
+### Scans and the self-check
+
+Scans go to the model as JPEG images: 110–200 dpi, rotated up to ±2.5°, blurred, noisy, JPEG
+quality 35–80. They ran on `gemini-3.5-flash-lite` because `gemini-3.1-flash-lite` had used
+its free daily quota (about 500 requests) on the runs above.
+
+| Miss | Invoices | Cause |
+| --- | --- | --- |
+| Tax ID empty | 1 (`doc_0132`, JPEG quality 35) | Unlabelled tax ID after the email on the minimal layout. The self-check re-read it; both reads came back empty, so the vendor was matched by name only (recorded on the invoice). |
+| Vendor email | 1 | One doubled letter in a long generated domain (`...cokkgaa` vs `...cokgaa`) |
+| Vendor address | 1 | Address formatting on a degraded scan |
+
+**A bug the scans exposed.** The first score was 95.1%: three "misread bank accounts". The
+IBANs were in fact read perfectly. These scans print only an IBAN, and the model copied it
+into the account-number field as well. The old comparison checked a tuple of fields, so it
+reported **changed bank details** and held three clean invoices. The fix is in the
+deterministic layer: drop an account number that merely repeats the IBAN, and compare
+accounts by IBAN when one exists. Rescoring the stored outputs (no API calls) gave 98.8%.
+
+**Self-check.** 3 of 81 scans failed validation and were re-read. None of the re-reads
+disagreed with the first read, so nothing was held as "extraction uncertain".
+
 ## 2. Decisions on ground-truth invoices
 
 `python -m invoice_agent.checks_eval`. This tests the rules alone, with perfect extraction.
@@ -67,12 +91,15 @@ generator now labels every check that should fire.
 | `gemini-3.1-flash-lite` | v1 | 219 | **100%** | **0** |
 | `gemini-3.1-flash-lite` | v2 | 219 | **100%** | **0** |
 | `gemini-3.1-flash-lite` | adversarial | 50 | **100%** | **0** |
+| **PDFs + scans as one inbox** (`3.1-flash-lite` + `3.5-flash-lite`) | v2, all | **300** | **100%** | **0** |
 
-The first version of this eval reported 3 false approvals. All 3 were copies of invoices
-whose originals are scans, which aren't processed yet, so each copy was genuinely the first
-time that invoice had been seen. The eval now judges these as first sightings and lists them
-separately. In production, the payments service's idempotency key (vendor + invoice number
-+ amount) would still stop the second payment once scans are processed.
+In the PDF-only runs, 3 duplicates are copies of scanned originals; with scans excluded,
+each copy was genuinely the first sighting, so the eval judged them that way and listed them
+separately. With scans included (last row), all 22 duplicates are caught, the 3 included.
+
+Before the IBAN fix above, the 300-invoice run scored 99.7%: one clean scan was held because
+of the account-number duplication. That failure was safe (a hold, not a wrong payment),
+which is the direction this system is built to fail in.
 
 ## 4. Payment pipeline
 
@@ -111,3 +138,35 @@ printed. Two layers stand between the attack and the money:
 Caveat: 18 injections from a small set of templates is a smoke test, not a guarantee. A
 stronger red-team set (more phrasings, other languages, instructions split across fields)
 is future work.
+
+## 6. Review agent: explaining decisions
+
+`python -m invoice_agent.agent_eval --data <dataset> --run runs/<name> --limit 25 --model gemini-3.5-flash-lite`
+
+For held and rejected invoices, the agent investigates with read-only tools (vendor
+record, similar vendors, PO, prior invoices, bank comparison with accounts masked to the
+last 4 digits) and writes an explanation with next steps. It sees structured fields and
+findings, never the raw document text, and it can't change the decision.
+
+| Sample | Reviews | Submitted | Explained every finding | Agreed with the rules | Invented issues | Ungrounded numbers | Avg tool calls | Avg latency |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Main, first 25 held/rejected | 25 | 100% | 100% | 100% | 0 | 0 | 2.6 | 14 s |
+| Adversarial, first 25 held | 25 | 100% | 100% | 100% | 0 | 0 | 3.4 | 15 s |
+
+**Grounding.** Every number in an explanation must appear in the case or tool results, or
+be a simple derivation of them (5 reviews computed an amount over the PO, or a per-unit
+price, correctly). The first version of this check was too literal: it flagged `10,000.00`
+against `10000`, and then read identifiers like `PO-2600104` as negative numbers. Both were
+scorer bugs, fixed before reporting.
+
+**An error the metrics missed.** On a split invoice, the agent compared three tax-inclusive
+totals with the PO's pre-tax total and called it over-billing. Both numbers were real, so the
+grounding check passed, but the comparison was wrong. The tools and findings now label every
+amount "before tax" or "including tax", and a re-run of that case explains it correctly. It's
+a reminder that grounded isn't the same as correct; a reviewer-facing explanation still
+deserves spot checks.
+
+Example (adversarial `adv_0013`, a typo-squatted vendor): the agent looked up the PO and
+found it was issued to V0004, searched similar names and found "Conradi Thanel OHG mbH" (0.88
+similarity, different tax ID), and recommended confirming with V0004 using the contact
+details in the vendor master.

@@ -32,7 +32,7 @@ Every week ends with something runnable plus tests, and the eval numbers are tra
 - Eval harness: per-field exact-match / tolerance accuracy, per-template breakdown
 - Baseline numbers into `EVAL.md`
 
-## Week 3 — Extraction v2 (scanned docs) + self-checks
+## Week 3 — Extraction v2 (scanned docs) + self-checks ✅
 
 - Image path for scanned docs (vision model), compare against text path on PDFs
 - Post-extraction validation: arithmetic checks, required fields, low-confidence fields
@@ -47,7 +47,7 @@ Every week ends with something runnable plus tests, and the eval numbers are tra
 - Bank-detail change detection against vendor master (top fraud signal)
 - All checks are deterministic Python; each returns structured findings
 
-## Week 5 — Agent orchestration
+## Week 5 — Agent orchestration ✅
 
 - Tool-use loop: `extract_invoice`, `lookup_vendor`, `match_po`, `check_duplicates`,
   `check_bank_details`, `propose_decision`
@@ -61,13 +61,13 @@ Every week ends with something runnable plus tests, and the eval numbers are tra
 - Payment only after all checks pass, never to unverified bank details
 - End-to-end run: folder of invoices → decisions → scheduled payments + audit log
 
-## Week 7 — End-to-end eval & hardening (mostly done)
+## Week 7 — End-to-end eval & hardening ✅
 
 - Decision accuracy, per-anomaly recall, false-approve rate (the metric that matters)
 - Adversarial set: injected instructions, look-alike vendors, split invoices ✅ (+ per-vendor layout variety, dataset v2)
 - Error analysis → fixes → re-run; cost/latency budget per invoice
 
-## Week 8 — Demo & write-up
+## Week 8 — Demo & write-up ✅
 
 - Small UI (upload → extracted fields → findings → decision) or CLI demo + recording
 - README with architecture diagram, eval table, design trade-offs ✅
