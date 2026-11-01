@@ -1,7 +1,6 @@
 import json
 from collections import Counter
 from datetime import timedelta
-from decimal import Decimal
 
 import pytest
 
