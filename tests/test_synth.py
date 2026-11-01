@@ -7,7 +7,7 @@ from PIL import Image
 
 from invoice_agent.schema import PO_TOLERANCE, Anomaly, Decision, GroundTruth, Vendor
 from invoice_agent.synth import DatasetGenerator, write_dataset
-from invoice_agent.synth.render import fmt_money, money_style
+from invoice_agent.synth.render import fmt_money, resolve_style
 
 N = 80
 
@@ -110,7 +110,8 @@ def test_pdf_text_contains_key_fields(dataset):
         inv = gt.invoice
         assert inv.invoice_number in text
         assert inv.vendor_tax_id in text
-        total = fmt_money(inv.total, inv.currency, money_style(gt.render.template, inv.currency))
+        st = resolve_style(gt.render.template, inv.currency, gt.render.style)
+        total = fmt_money(inv.total, inv.currency, st.money)
         assert _digits(total) in _digits(text), (gt.doc_id, total)
 
 
@@ -132,3 +133,18 @@ def test_deterministic(tmp_path):
     write_dataset(b, tmp_path / "b")
     for gt in a.cases:
         assert (tmp_path / "a" / gt.render.file).read_bytes() == (tmp_path / "b" / gt.render.file).read_bytes()
+
+
+def test_layout_variety_changes_look_not_content():
+    plain = DatasetGenerator(seed=9, n_vendors=8, layout_variety=False).generate(40)
+    varied = DatasetGenerator(seed=9, n_vendors=8).generate(40)
+    assert [g.invoice for g in plain.cases] == [g.invoice for g in varied.cases]
+    assert [g.anomalies for g in plain.cases] == [g.anomalies for g in varied.cases]
+    assert all(g.render.style is None for g in plain.cases)
+    styles = {g.render.style.model_dump_json() for g in varied.cases}
+    assert len(styles) >= 8  # every vendor looks different
+    by_vendor = {}
+    for g in varied.cases:
+        if g.vendor_id:
+            by_vendor.setdefault(g.vendor_id, set()).add(g.render.style.model_dump_json())
+    assert all(len(s) == 1 for s in by_vendor.values())  # ...but consistent per vendor

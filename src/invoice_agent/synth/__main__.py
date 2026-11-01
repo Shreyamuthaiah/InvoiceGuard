@@ -13,8 +13,10 @@ def main() -> None:
     p.add_argument("--vendors", type=int, default=25)
     p.add_argument("--scan-ratio", type=float, default=0.3)
     p.add_argument("--out", default="data/synthetic")
+    p.add_argument("--no-variety", action="store_true", help="fixed per-template look (dataset v1)")
     a = p.parse_args()
-    ds = DatasetGenerator(seed=a.seed, n_vendors=a.vendors, scan_ratio=a.scan_ratio).generate(a.n)
+    ds = DatasetGenerator(seed=a.seed, n_vendors=a.vendors, scan_ratio=a.scan_ratio,
+                          layout_variety=not a.no_variety).generate(a.n)
     stats = write_dataset(ds, a.out)
     print(json.dumps(stats, indent=2))
     print(f"Wrote dataset to {a.out}")

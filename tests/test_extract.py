@@ -13,7 +13,7 @@ from invoice_agent.extract.normalize import (
 )
 from invoice_agent.schema import GroundTruth
 from invoice_agent.synth import DatasetGenerator, write_dataset
-from invoice_agent.synth.render import STYLES, fmt_money, fmt_qty, fmt_rate, fmt_unit, money_style
+from invoice_agent.synth.render import fmt_date, fmt_money, fmt_qty, fmt_rate, fmt_unit, resolve_style
 
 
 # ---------- number / date normalisation ----------
@@ -70,8 +70,9 @@ def test_ambiguous_dates_resolved_by_terms_then_country():
 def printed_extraction(gt: GroundTruth) -> ExtractedInvoice:
     """What a flawless transcriber would return for this document."""
     inv, tpl = gt.invoice, gt.render.template
-    ms = money_style(tpl, inv.currency)
-    d = lambda x: STYLES[tpl]["date"](x, inv.currency)  # noqa: E731
+    st = resolve_style(tpl, inv.currency, gt.render.style)
+    ms = st.money
+    d = lambda x: fmt_date(st, x)  # noqa: E731
     m = lambda x: fmt_money(x, inv.currency, ms)  # noqa: E731
     addr = lambda a: ExtractedAddress(**a.model_dump())  # noqa: E731
     return ExtractedInvoice(

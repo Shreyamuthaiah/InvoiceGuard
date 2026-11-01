@@ -142,12 +142,34 @@ def expected_decision(anomalies: list[Anomaly]) -> Decision:
     return Decision.APPROVE
 
 
+class Style(BaseModel):
+    """A vendor's visual variation of a base layout (see synth/render.py)."""
+    template: str
+    font: str = "Helvetica"
+    accent: str = "#1F4E5F"
+    columns: list[str] = Field(default_factory=lambda: ["desc", "qty", "unit", "amount"])
+    labels: dict[str, str]
+    date_fmt: str
+    money: str = "us"  # "us" -> $1,234.56 ; "eu" -> 1.234,56 EUR-style
+    upper_labels: bool = False
+    vendor_right: bool = False
+    bank_beside_totals: bool = False
+
+
+class Injection(BaseModel):
+    """Text printed on the document that is not invoice data (adversarial cases)."""
+    text: str
+    mode: Literal["note", "hidden"]  # visible notes block | white 1pt text (invisible on paper)
+
+
 class RenderInfo(BaseModel):
     template: str
     file: str  # relative to the dataset root
     format: Literal["pdf", "jpg"]
     scanned: bool
     degradations: dict[str, float] = Field(default_factory=dict)
+    style: Optional[Style] = None  # None = the template's fixed v1 look
+    injections: list[Injection] = Field(default_factory=list)
 
 
 class GroundTruth(BaseModel):

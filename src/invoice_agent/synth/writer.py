@@ -29,7 +29,7 @@ def write_dataset(ds: Dataset, out_dir: str | Path) -> dict:
 
     manifest = []
     for gt in ds.cases:
-        pdf = render_pdf_bytes(gt.invoice, gt.render.template)
+        pdf = render_pdf_bytes(gt.invoice, gt.render.template, gt.render.style, gt.render.injections)
         if gt.render.scanned:
             # String seeds are hashed deterministically, so scans reproduce across runs.
             data, params = degrade_to_scan(pdf, random.Random(f"{ds.seed}:{gt.doc_id}"))

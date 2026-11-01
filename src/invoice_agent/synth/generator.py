@@ -6,6 +6,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Optional
 
 from faker import Faker
 
@@ -19,11 +20,13 @@ from invoice_agent.schema import (
     LineItem,
     PurchaseOrder,
     RenderInfo,
+    Style,
     Vendor,
     expected_decision,
     money,
 )
 from invoice_agent.synth import catalog
+from invoice_agent.synth.render import make_style
 
 # Probability of each case type; "clean" means no anomaly.
 DEFAULT_WEIGHTS: dict[str, float] = {
@@ -44,6 +47,7 @@ DATE_SPAN_DAYS = 280
 class _VendorState:
     vendor: Vendor
     template: str
+    style: Optional[Style]
     pattern: str
     prefix: str
     next_n: int
@@ -64,10 +68,12 @@ class DatasetGenerator:
         n_vendors: int = 25,
         scan_ratio: float = 0.3,
         weights: dict[str, float] | None = None,
+        layout_variety: bool = True,
     ) -> None:
         self.seed = seed
         self.n_vendors = n_vendors
         self.scan_ratio = scan_ratio
+        self.layout_variety = layout_variety
         self.weights = weights or DEFAULT_WEIGHTS
         self.rng = random.Random(seed)
         self.fakers: dict[str, Faker] = {}
@@ -149,13 +155,18 @@ class DatasetGenerator:
             bank_account=self._bank(cur, name),
         )
         initials = "".join(w[0] for w in name.replace("-", " ").split() if w[0].isalpha()).upper()[:3] or "INV"
-        return _VendorState(
-            vendor=vendor,
-            template=self.rng.choice(catalog.TEMPLATES),
-            pattern=self.rng.choice(catalog.INVOICE_NUMBER_PATTERNS),
-            prefix=initials,
-            next_n=self.rng.randint(100, 9000),
-        )
+        # Same main-RNG call order as dataset v1, so invoice content is unchanged.
+        template = self.rng.choice(catalog.TEMPLATES)
+        pattern = self.rng.choice(catalog.INVOICE_NUMBER_PATTERNS)
+        next_n = self.rng.randint(100, 9000)
+        return _VendorState(vendor=vendor, template=template, style=self._style(template, cur, vendor_id),
+                            pattern=pattern, prefix=initials, next_n=next_n)
+
+    def _style(self, template: str, currency: str, key: str) -> Optional[Style]:
+        """Visual style from its own RNG: changing styles never changes invoice content."""
+        if not self.layout_variety:
+            return None
+        return make_style(random.Random(f"{self.seed}:style:{key}"), template, currency)
 
     # ---------- documents ----------
 
@@ -211,10 +222,11 @@ class DatasetGenerator:
             remit_to=remit_to,
         )
 
-    def _render_info(self, doc_id: str, template: str) -> RenderInfo:
+    def _render_info(self, doc_id: str, template: str, style: Optional[Style] = None) -> RenderInfo:
         scanned = self.rng.random() < self.scan_ratio
         fmt = "jpg" if scanned else "pdf"
-        return RenderInfo(template=template, file=f"docs/{doc_id}.{fmt}", format=fmt, scanned=scanned)
+        return RenderInfo(template=template, file=f"docs/{doc_id}.{fmt}", format=fmt, scanned=scanned,
+                          style=style)
 
     def generate(self, n: int) -> Dataset:
         states = [self._make_vendor() for _ in range(self.n_vendors)]
@@ -238,7 +250,7 @@ class DatasetGenerator:
                     anomalies=anomalies,
                     expected_decision=expected_decision(anomalies),
                     duplicate_of=orig.doc_id,
-                    render=self._render_info(doc_id, orig.render.template),
+                    render=self._render_info(doc_id, orig.render.template, orig.render.style),
                     notes=[f"Re-sent copy of {orig.doc_id} (same vendor + invoice number)."],
                 ))
                 continue
@@ -327,7 +339,9 @@ class DatasetGenerator:
                 vendor_id=v.vendor_id if kind != Anomaly.UNKNOWN_VENDOR.value else None,
                 anomalies=anomalies,
                 expected_decision=expected_decision(anomalies),
-                render=self._render_info(doc_id, template),
+                render=self._render_info(
+                    doc_id, template,
+                    vs.style if template == vs.template else self._style(template, v.currency, doc_id)),
                 notes=notes,
             )
             ds.cases.append(gt)
