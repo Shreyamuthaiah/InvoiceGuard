@@ -19,6 +19,7 @@ and every claim is measured against a labelled dataset.
 | **Cost** | $0 (free API tier), ~12 s per invoice |
 
 Full numbers, methodology and failure analysis: [EVAL.md](EVAL.md).
+The story behind it, including what broke: [docs/case-study.md](docs/case-study.md).
 
 ## How it works
 
