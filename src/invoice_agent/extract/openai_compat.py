@@ -32,11 +32,16 @@ class Preset:
 
 PRESETS = {
     "gemini": Preset("https://generativelanguage.googleapis.com/v1beta/openai", "GEMINI_API_KEY",
-                     "gemini-3.5-flash", rpm=10, strict=False),
+                     "gemini-3.1-flash-lite", rpm=10, strict=False),
     "groq": Preset("https://api.groq.com/openai/v1", "GROQ_API_KEY", "openai/gpt-oss-120b", rpm=3, strict=True),
 }
 
 RETRY_STATUSES = {429, 500, 502, 503, 504}
+
+
+class APIError(RuntimeError):
+    pass
+
 MAX_WAIT_S = 300  # longer server-requested waits mean a daily quota, not a burst limit
 QUOTA_EXHAUSTED = "quota exhausted"
 
@@ -144,6 +149,17 @@ class OpenAICompatExtractor:
             delay = server_delay if server_delay is not None else min(10 * 2 ** attempt, 120)
             self._sleep(delay)
         return resp  # pragma: no cover
+
+    def chat(self, payload: dict) -> dict:
+        """One chat-completions call (used by the review agent). Raises APIError on failure."""
+        resp = self._post({"model": self.model, "temperature": 0, **payload})
+        if resp.status_code != 200:
+            delay = _retry_delay_s(resp)
+            if resp.status_code == 429 and delay is not None and delay > MAX_WAIT_S:
+                raise APIError(f"{QUOTA_EXHAUSTED}: {self.model} free-tier quota used up; "
+                               f"resets in ~{delay / 3600:.1f}h")
+            raise APIError(f"{self.provider} error {resp.status_code}: {resp.text[:500]}")
+        return resp.json()
 
     def extract_text(self, document_text: str, hint: str | None = None) -> ExtractionResult:
         return self._run(self._payload(document_text, hint=hint))

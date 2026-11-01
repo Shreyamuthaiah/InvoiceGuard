@@ -250,7 +250,7 @@ def _ok(content: str, finish="stop"):
 
 
 @pytest.mark.parametrize("provider,host,model,strict", [
-    ("gemini", "generativelanguage.googleapis.com", "gemini-3.5-flash", False),
+    ("gemini", "generativelanguage.googleapis.com", "gemini-3.1-flash-lite", False),
     ("groq", "api.groq.com", "openai/gpt-oss-120b", True),
 ])
 def test_compat_request_shape(small_dataset, provider, host, model, strict):

@@ -42,6 +42,7 @@ class ProcessResult:
     payment_created: bool = False
     extraction_error: Optional[str] = None
     warnings: list[str] = field(default_factory=list)
+    explanation: Optional[dict] = None  # review agent output for held/rejected invoices
 
 
 def _text(path: Path) -> Optional[str]:
@@ -58,9 +59,13 @@ def _sha256(path: Path) -> str:
 
 class InvoicePipeline:
     def __init__(self, vendors: list[Vendor], purchase_orders: list[PurchaseOrder], extract: ExtractFn,
-                 out_dir: Path, today: date, policy: PaymentPolicy | None = None) -> None:
+                 out_dir: Path, today: date, policy: PaymentPolicy | None = None, explain_llm=None) -> None:
         self.extract = extract
         self.checker = InvoiceChecker(vendors, purchase_orders)
+        self.agent = None
+        if explain_llm is not None:
+            from invoice_agent.agent import ReviewAgent
+            self.agent = ReviewAgent(explain_llm, self.checker)
         self.payments = MockPaymentsAPI(out_dir / "payments.json", policy)
         self.out_dir = out_dir
         self.today = today
@@ -92,6 +97,11 @@ class InvoicePipeline:
                 except PaymentError as e:  # a payment control tripped: never pay, send to a human
                     result.decision = Decision.HOLD
                     result.reasons.append(f"payment blocked: {e}")
+        if self.agent and result.decision != Decision.APPROVE and result.invoice and result.report:
+            review = self.agent.explain(doc_id, result.invoice, result.report, result.decision, result.reasons)
+            result.explanation = {"summary": review.review.summary if review.review else None,
+                                  "issues": [i.model_dump() for i in review.review.issues] if review.review else [],
+                                  "error": review.error, "tool_calls": review.tool_calls}
         self._audit(result, path, extractor)
         return result
 
@@ -117,12 +127,13 @@ class InvoicePipeline:
             "payment_id": r.payment.payment_id if r.payment else None,
             "payment_status": r.payment.status if r.payment else None,
             "payment_reused": bool(r.payment) and not r.payment_created,
+            "explanation": r.explanation,
         }
         with self.audit_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
         if r.decision != Decision.APPROVE or (r.payment and r.payment.status == "awaiting_approval"):
             item = {"doc_id": r.doc_id, "decision": r.decision.value, "reasons": r.reasons,
-                    "warnings": r.warnings, "vendor": record["vendor"], "invoice_number": record["invoice_number"],
+                    "warnings": r.warnings, "explanation": r.explanation, "vendor": record["vendor"], "invoice_number": record["invoice_number"],
                     "total": record["total"], "currency": record["currency"],
                     "awaiting_approval": r.payment.payment_id if r.payment and r.payment.status == "awaiting_approval" else None}
             with self.queue_path.open("a", encoding="utf-8") as f:
@@ -209,6 +220,9 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--limit", type=int, default=None)
     p.add_argument("--today", default=None, help="YYYY-MM-DD; default: today")
     p.add_argument("--include-scans", action="store_true", help="also process scanned documents (vision)")
+    p.add_argument("--explain", action="store_true",
+                   help="run the review agent on held/rejected invoices (uses API quota)")
+    p.add_argument("--explain-model", default=None, help="model for the review agent")
     a = p.parse_args(argv)
 
     data, out = Path(a.data), Path(a.out)
@@ -225,7 +239,12 @@ def main(argv: list[str] | None = None) -> None:
     else:
         extract = live_extractor(a.provider, a.model)
 
-    pipe = InvoicePipeline(vendors, pos, extract, out, today)
+    explain_llm = None
+    if a.explain:
+        from invoice_agent.extract.openai_compat import OpenAICompatExtractor
+        explain_llm = OpenAICompatExtractor(a.provider if a.provider in ("gemini", "groq") else "gemini",
+                                            model=a.explain_model)
+    pipe = InvoicePipeline(vendors, pos, extract, out, today, explain_llm=explain_llm)
     results = []
     for i, (doc_id, path) in enumerate(docs, 1):
         r = pipe.process(doc_id, path)

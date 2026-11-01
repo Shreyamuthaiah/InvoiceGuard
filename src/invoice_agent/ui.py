@@ -74,11 +74,12 @@ class Dataset:
 
 class Session:
     def __init__(self, datasets: list[Path], out_root: Path, provider: str, model: Optional[str],
-                 today: date) -> None:
+                 today: date, explain_llm=None) -> None:
         self.datasets = {p.name: Dataset(p) for p in datasets if (p / "manifest.jsonl").exists()}
         if not self.datasets:
             raise SystemExit("no datasets found; run `python -m invoice_agent.synth` first")
         self.out_root, self.provider, self.model, self.today = out_root, provider, model, today
+        self.explain_llm = explain_llm
         self._live = None
         self.reset()
 
@@ -86,7 +87,8 @@ class Session:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.out = self.out_root / stamp
         self.pipes = {name: InvoicePipeline(ds.vendors, ds.pos, labels_extractor(ds.path), self.out / name,
-                                            self.today) for name, ds in self.datasets.items()}
+                                            self.today, explain_llm=self.explain_llm)
+                      for name, ds in self.datasets.items()}
         self.results: list[dict] = []
         self.uploads = 0
 
@@ -138,6 +140,7 @@ class Session:
             "vendor_match": (r.report.vendor_match.method if r.report else None),
             "payment": r.payment.model_dump(mode="json") if r.payment else None,
             "payment_reused": bool(r.payment) and not r.payment_created,
+            "explanation": r.explanation,
             "expected": ({"decision": gt.expected_decision.value, "anomalies": [a.value for a in gt.anomalies],
                           "notes": gt.notes} if gt else None),
         }
@@ -281,6 +284,11 @@ if(r.payment){const p=r.payment;right.append(el('div',{class:'card'},[el('h2',{t
 const f=el('ul',{class:'findings'});if(r.extraction_error)f.append(el('li',{},[el('span',{class:'sev error',text:'ERROR'}),r.extraction_error]));
 for(const x of r.findings){f.append(el('li',{},[el('span',{class:'sev '+x.severity,text:x.severity.toUpperCase()}),x.message]))}
 if(!f.children.length)f.append(el('li',{class:'muted',text:'No findings: all checks passed.'}));right.append(el('div',{class:'card'},[el('h2',{text:'Findings'}),f]));
+if(r.explanation){const ex=r.explanation;const box=el('div',{class:'card'},[el('h2',{text:'Explanation (review agent)'})]);
+if(ex.summary)box.append(el('p',{text:ex.summary}));const ul=el('ul',{class:'findings'});
+for(const i of ex.issues||[])ul.append(el('li',{},[el('span',{class:'sev warning',text:i.check.toUpperCase()}),i.explanation,el('div',{class:'muted',text:'Next: '+i.next_step})]));
+if(ex.error)ul.append(el('li',{class:'muted',text:'Agent error: '+ex.error}));box.append(ul);
+box.append(el('div',{class:'muted',text:'The rules made the decision; the agent only explains it. Tools used: '+((ex.tool_calls||[]).join(', ')||'none')}));right.append(box)}
 if(inv){right.append(el('div',{class:'card'},[el('h2',{text:'Extracted fields'}),kv([['Vendor',inv.vendor_name],['Tax ID',inv.vendor_tax_id],['Invoice #',inv.invoice_number],['Invoice date',inv.invoice_date],['Due date',inv.due_date],['PO',inv.po_number],['Subtotal',money(inv.subtotal,inv.currency),'num'],['Tax',money(inv.tax_amount,inv.currency),'num'],['Total',money(inv.total,inv.currency),'num'],['Remit to',inv.remit_to.bank_name+' · '+(inv.remit_to.iban||inv.remit_to.account_number)]]),
 el('table',{style:'margin-top:10px'},[el('tr',{},[el('th',{text:'Line item'}),el('th',{text:'Qty'}),el('th',{text:'Amount'})])].concat(inv.line_items.map(li=>el('tr',{},[el('td',{text:li.description}),el('td',{class:'num',text:li.quantity}),el('td',{class:'num',text:money(li.amount,inv.currency)})]))))]))}
 if(r.expected&&r.expected.notes.length)left.append(el('div',{class:'card'},[el('h2',{text:'What this test case contains'}),el('div',{class:'muted',text:r.expected.notes.join(' ')})]));
@@ -299,6 +307,7 @@ def main(argv: list[str] | None = None) -> None:
                    help="dataset folders (default: data/synthetic and data/adversarial in the project)")
     p.add_argument("--out", default=None, help="session output root (default: runs/ui in the project)")
     p.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
+    p.add_argument("--explain", action="store_true", help="explain held/rejected invoices with the review agent")
     p.add_argument("--provider", default="gemini")
     p.add_argument("--model", default=None)
     p.add_argument("--today", default=None, help="YYYY-MM-DD for payment scheduling; default today")
@@ -310,7 +319,12 @@ def main(argv: list[str] | None = None) -> None:
     if not found:
         raise SystemExit(f"No datasets found in {', '.join(str(d) for d in data)}.\n"
                          f"Create one with:  python -m invoice_agent.synth --out {ROOT / 'data' / 'synthetic'}")
-    session = Session(found, Path(a.out) if a.out else ROOT / "runs" / "ui", a.provider, a.model, today)
+    explain_llm = None
+    if a.explain:
+        from invoice_agent.extract.openai_compat import OpenAICompatExtractor
+        explain_llm = OpenAICompatExtractor("gemini", model=a.model)
+    session = Session(found, Path(a.out) if a.out else ROOT / "runs" / "ui", a.provider, a.model, today,
+                      explain_llm)
     try:
         server = HTTPServer(("127.0.0.1", a.port), make_handler(session))
     except OSError as e:
